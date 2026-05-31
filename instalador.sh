@@ -1,10 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
 #  MI TIENDA WA — Instalador completo
-#  Un solo comando para dejar todo listo
+#  Un solo comando, sin intervención manual
 # ============================================================
-
-set -e
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,11 +12,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-ok()   { echo -e "${GREEN}✓${NC} $1"; }
+ok() { echo -e "${GREEN}✓${NC} $1"; }
 info() { echo -e "${BLUE}▶${NC} $1"; }
 warn() { echo -e "${YELLOW}!${NC} $1"; }
-err()  { echo -e "${RED}✗ ERROR:${NC} $1"; exit 1; }
-ask()  { echo -e "${CYAN}?${NC} $1"; }
+err() { echo -e "${RED}✗ ERROR:${NC} $1"; exit 1; }
+ask() { echo -e "${CYAN}?${NC} $1"; }
 
 clear
 echo -e "${BOLD}"
@@ -40,31 +38,26 @@ info "Solicitando permisos de almacenamiento..."
 termux-setup-storage 2>/dev/null || true
 sleep 2
 
-# ── Actualizar Termux ───────────────────────────────────────
+# ── Actualizar Termux (sin filtros que puedan romper) ───────
 info "Actualizando Termux..."
-pkg update -y -o Dpkg::Options::="--force-confnew" 2>/dev/null | tail -3
-pkg upgrade -y 2>/dev/null | tail -3
+pkg update -y
+pkg upgrade -y
 ok "Termux actualizado"
 
-# ── Instalar dependencias ───────────────────────────────────
+# ── Instalar dependencias (una por una para evitar fallos) ──
 info "Instalando dependencias..."
-pkg install -y \
-    python \
-    python-pip \
-    wget \
-    curl \
-    jq \
-    sqlite \
-    openssl \
-    termux-api \
-    git \
-    2>/dev/null | tail -5
+
+for pkg in python python-pip wget curl jq sqlite openssl termux-api git; do
+    echo "  Instalando $pkg..."
+    pkg install -y $pkg
+done
+
 ok "Dependencias instaladas"
 
 # ── Instalar librerías Python ───────────────────────────────
 info "Instalando librerías Python..."
-pip install --quiet --upgrade pip 2>/dev/null
-pip install --quiet flask requests 2>/dev/null
+pip install --upgrade pip
+pip install flask requests
 ok "Librerías Python instaladas"
 
 # ── Crear estructura de directorios ─────────────────────────
@@ -86,12 +79,13 @@ else
     WUZURL="https://github.com/asternic/wuzapi/releases/latest/download/wuzapi-android-arm"
 fi
 
-if wget -q --show-progress -O "$WUZDIR/wuzapi" "$WUZURL" 2>/dev/null; then
-    chmod +x "$WUZDIR/wuzapi"
-    ok "WuzAPI descargado"
-else
+wget -O "$WUZDIR/wuzapi" "$WUZURL"
+if [[ $? -ne 0 ]]; then
     err "No se pudo descargar WuzAPI. Verifica tu conexión a internet."
 fi
+
+chmod +x "$WUZDIR/wuzapi"
+ok "WuzAPI descargado"
 
 # ── Generar token único ─────────────────────────────────────
 TOKEN=$(openssl rand -hex 16)
@@ -119,30 +113,28 @@ done
 EOF
 
 chmod +x "$WUZDIR/iniciar.sh"
+ok "Script de inicio de WuzAPI creado"
 
-# ── Descargar bot.py desde GitHub ───────────────────────────
+# ── Descargar archivos desde GitHub ─────────────────────────
 info "Descargando bot.py..."
-BOT_URL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/bot.py"
-if wget -q -O "$BASEDIR/bot.py" "$BOT_URL" 2>/dev/null; then
-    ok "bot.py descargado"
-else
+wget -O "$BASEDIR/bot.py" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/bot.py"
+if [[ $? -ne 0 ]]; then
     err "No se pudo descargar bot.py"
 fi
+ok "bot.py descargado"
 
-# ── Descargar watchdog.sh desde GitHub ──────────────────────
 info "Descargando watchdog.sh..."
-WATCHDOG_URL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/watchdog.sh"
-if wget -q -O "$BASEDIR/watchdog.sh" "$WATCHDOG_URL" 2>/dev/null; then
-    chmod +x "$BASEDIR/watchdog.sh"
-    ok "watchdog.sh descargado"
-else
+wget -O "$BASEDIR/watchdog.sh" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/watchdog.sh"
+if [[ $? -ne 0 ]]; then
     err "No se pudo descargar watchdog.sh"
 fi
+chmod +x "$BASEDIR/watchdog.sh"
+ok "watchdog.sh descargado"
 
 # ── Guardar token ───────────────────────────────────────────
 echo "$TOKEN" > "$DBDIR/token.txt"
 
-# ── Solicitar número del teléfono A (el que atiende) ────────
+# ── Solicitar número del teléfono A ─────────────────────────
 echo ""
 echo -e "${BOLD}══════════════════════════════════════════${NC}"
 echo -e "${BOLD}  PASO 1: TELÉFONO QUE ATENDERÁ CLIENTES  ${NC}"
@@ -161,14 +153,14 @@ fi
 echo "$TELEFONO_A" > "$DBDIR/telefono_a.txt"
 ok "Teléfono A guardado"
 
-# ── Solicitar número del teléfono B (dueño) ─────────────────
+# ── Solicitar número del teléfono B ─────────────────────────
 echo ""
 echo -e "${BOLD}══════════════════════════════════════════${NC}"
 echo -e "${BOLD}  PASO 2: NÚMERO DEL DUEÑO (TELÉFONO B)   ${NC}"
 echo -e "${BOLD}══════════════════════════════════════════${NC}"
 echo ""
 ask "Ingresa tu número personal (Teléfono B)"
-ask "Este número podrá darte instrucciones al sistema"
+ask "Este número podrá dar instrucciones al sistema"
 ask "Formato: 5215512345678"
 echo ""
 read -p "  Número: " TELEFONO_B
@@ -218,7 +210,6 @@ if [[ -n "$PAIR_CODE" ]]; then
     echo ""
 else
     warn "No se pudo obtener el código automáticamente."
-    warn "Intenta manualmente más tarde o revisa que Wuzapi esté corriendo."
 fi
 
 echo ""
@@ -229,18 +220,23 @@ ok "Emparejamiento confirmado"
 info "Verificando webhook..."
 sleep 3
 
-# Iniciar el bot temporalmente para probar
+# Iniciar el bot temporalmente
 info "Iniciando bot para verificar webhook..."
 nohup python "$BASEDIR/bot.py" > "$BASEDIR/bot.log" 2>&1 &
 sleep 5
 
 # Enviar mensaje de prueba al dueño
-TEST_MSG="✅ *Webhook funcionando correctamente*\n\nEl sistema MI TIENDA WA está listo para atender a tus clientes.\n\nAhora vamos a configurar tu negocio. Responde *INICIAR* cuando estés listo."
+TEST_MSG="✅ Webhook funcionando correctamente
+
+El sistema MI TIENDA WA está listo para atender a tus clientes.
+
+Ahora vamos a configurar tu negocio. Responde INICIAR cuando estés listo."
+
 curl -s -X POST \
     -H "Token: $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"Phone\":\"$TELEFONO_B\",\"Body\":\"$TEST_MSG\"}" \
-    http://localhost:8080/chat/send/text > /dev/null 2>/dev/null
+    http://localhost:8080/chat/send/text > /dev/null 2>&1
 
 echo ""
 ask "¿Recibiste el mensaje de confirmación en tu WhatsApp (Teléfono B)? (s/n)"
@@ -248,24 +244,30 @@ read -p "  Respuesta: " CONFIRMACION
 
 if [[ "$CONFIRMACION" != "s" && "$CONFIRMACION" != "S" ]]; then
     warn "No se recibió confirmación. Revisando logs..."
-    tail -5 "$BASEDIR/bot.log"
-    err "El webhook no funciona. Revisa tu conexión y reinicia la instalación."
+    tail -10 "$BASEDIR/bot.log"
+    err "El webhook no funciona. Revisa tu conexión."
 fi
 
 ok "Webhook verificado correctamente"
 
-# ── Matar el bot temporal para que lo inicie el watchdog ────
+# ── Matar el bot temporal ───────────────────────────────────
 pkill -f bot.py 2>/dev/null
 sleep 2
 
 # ── Crear script maestro de inicio ──────────────────────────
-cat > "$HOME/iniciar_mitiendawa.sh" << MASTEREOF
+cat > "$HOME/iniciar_mitiendawa.sh" << 'MASTEREOF'
 #!/data/data/com.termux/files/usr/bin/bash
-# Iniciar MI TIENDA WA
-nohup bash ~/wuzapi/iniciar.sh > /dev/null 2>&1 &
-sleep 3
-nohup bash ~/mitiendawa/watchdog.sh > /dev/null 2>&1 &
+BASEDIR="$HOME/mitiendawa"
+WUZDIR="$HOME/wuzapi"
+pkill -f wuzapi 2>/dev/null
+pkill -f bot.py 2>/dev/null
+pkill -f watchdog.sh 2>/dev/null
 sleep 2
+nohup bash "$WUZDIR/iniciar.sh" > /dev/null 2>&1 &
+sleep 3
+nohup bash "$BASEDIR/watchdog.sh" > /dev/null 2>&1 &
+sleep 2
+nohup python "$BASEDIR/bot.py" > "$BASEDIR/bot.log" 2>&1 &
 echo "✅ MI TIENDA WA iniciado"
 MASTEREOF
 
@@ -303,12 +305,19 @@ bash ~/iniciar_mitiendawa.sh
 sleep 5
 
 # ── Enviar mensaje de onboarding al dueño ───────────────────
-ONBOARD_MSG="🎉 *¡Instalación completada!*\n\nAhora vamos a configurar tu negocio.\n\nResponde *INICIAR* para comenzar con el nombre de tu negocio, dirección, horarios y para enviar los audios de tu menú.\n\nPuedes usar el comando *COMANDOS* para ver todo lo que puedes hacer."
+ONBOARD_MSG="🎉 *¡Instalación completada!*
+
+Ahora vamos a configurar tu negocio.
+
+Responde *INICIAR* para comenzar con el nombre de tu negocio, dirección, horarios y para enviar los audios de tu menú.
+
+Puedes usar el comando *COMANDOS* para ver todo lo que puedes hacer."
+
 curl -s -X POST \
     -H "Token: $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"Phone\":\"$TELEFONO_B\",\"Body\":\"$ONBOARD_MSG\"}" \
-    http://localhost:8080/chat/send/text > /dev/null 2>/dev/null
+    http://localhost:8080/chat/send/text > /dev/null 2>&1
 
 # ── Resumen final ───────────────────────────────────────────
 echo ""
