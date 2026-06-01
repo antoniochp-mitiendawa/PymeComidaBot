@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # ============================================================
-#  MI TIENDA WA — Bot Principal
+#  MI TIENDA WA — Bot Principal v2
 #  Motor de atención al cliente para restaurantes pequeños
-#  Funciona con WuzAPI + Termux en Android
+#  Termux + WuzAPI — Sin dependencias externas de IA
 # ============================================================
 
 import os, json, sqlite3, threading, time, re, requests, random
@@ -18,7 +18,7 @@ BPATH     = os.path.join(BASEDIR, "data", "telefono_b.txt")
 LOGPATH   = os.path.join(BASEDIR, "bot.log")
 WUZAPI    = "http://localhost:8080"
 
-# ── Token y teléfono B ───────────────────────────────────────
+# ── Leer archivos de configuración ──────────────────────────
 def leer_archivo(path):
     try:
         with open(path) as f:
@@ -26,10 +26,10 @@ def leer_archivo(path):
     except:
         return ""
 
-TOKEN     = leer_archivo(TOKENPATH)
+# TOKEN y TELEFONO_B se leen al inicio y se recargan en __main__
+TOKEN      = leer_archivo(TOKENPATH)
 TELEFONO_B = leer_archivo(BPATH)
 
-# ── Flask ────────────────────────────────────────────────────
 app = Flask(__name__)
 
 # ── Logging ──────────────────────────────────────────────────
@@ -46,42 +46,40 @@ def log(msg):
 # ════════════════════════════════════════════════════════════
 #  EMOJIS Y VARIEDAD DE RESPUESTAS
 # ════════════════════════════════════════════════════════════
-
 EMOJIS = {
-    "saludo":   ["✨","🌤️","🌅","☕","🤝","👋","🎈","🍀","☀️","🌈","🙌","⭐","🌻","🔋","🌸","🍃","💫","🌟"],
-    "menu":     ["📖","📗","📘","📙","📓","📒","📑","📚","🔬","🎓","🧠","🚀","💎","💡","📢","🔔"],
-    "horario":  ["🕐","🕑","🕒","🕓","🕔","🕕","🕖","🕗","🕘","🕙","🕚","🕛","⏰","⌛","⏲️","⏱️"],
-    "ubicacion":["📍","🗺️","🧭","🏠","🏪","🏢","📌","🔍","🚩","🌐","🏘️","🏚️","🗾"],
-    "precio":   ["💰","🏷️","💵","💳","🎁","💎","💸","🪙","💹","🛒","💲","🎯","🔥","📦","💴","💶","💷"],
-    "comida":   ["🍳","🥞","🥓","🍔","🍟","🍕","🌮","🥗","🍜","🍲","🥘","🍰","🍨","🍦","🍩","🥨","🥖","🍚"],
+    "saludo":    ["✨","🌤️","🌅","☕","🤝","👋","🎈","🍀","☀️","🌈","🙌","⭐","🌻","🌸","💫","🌟"],
+    "menu":      ["📖","📗","📘","📙","📓","📒","📑","📚","🎓","🧠","🚀","💎","💡","📢","🔔"],
+    "horario":   ["🕐","🕑","🕒","🕓","🕔","🕕","🕖","🕗","🕘","🕙","🕚","🕛","⏰","⌛","⏲️","⏱️"],
+    "ubicacion": ["📍","🗺️","🧭","🏠","🏪","🏢","📌","🔍","🚩","🌐","🏘️"],
+    "precio":    ["💰","🏷️","💵","💳","🎁","💎","💸","🪙","💹","🛒","💲","🎯","🔥"],
+    "comida":    ["🍳","🥞","🥓","🍔","🍟","🍕","🌮","🥗","🍜","🍲","🥘","🍰","🍨","🍦","🌯","🥖","🍚"],
     "aprobacion":["✅","👍","👌","🔥","💪","😎","👏","🙌","✨","💯"],
-    "despedida":["👋","🙏","😊","✨","🌟","💫","🎉","🍽️","🥡","💚","⭐","🌈","🌸"]
+    "despedida": ["👋","🙏","😊","✨","🌟","💫","🎉","🍽️","💚","⭐","🌈","🌸"]
 }
 
 RESPUESTAS = {
     "saludo_con_menu": [
-        "{} ¡{}! 🌅 Soy *{}* de *{}*. Ahora estamos en *{}* hasta las {}. ¿Te comparto el menú? 🍽️",
-        "{} ¡Qué gusto saludarte! 🙌 Aquí *{}* de *{}*. En este momento servimos *{}* (hasta {}). ¿Te interesa? 📖",
-        "{} ¡Bienvenido a *{}*! 🤝 Soy *{}*. Estamos en horario de *{}* hasta las {}. ¿Quieres que te cuente qué hay? 🎈",
-        "{} ¡Hola! ☕ Te habla *{}* de *{}*. Ahora es hora de *{}* (cierra a las {}). ¿Te mando la información? ✨",
-        "{} ¡Gracias por escribir! 🌻 Soy *{}*. En *{}* estamos con *{}* hasta las {}. ¿Te gustaría saber qué tenemos? 💫"
+        "{} ¡{}! Soy *{}* de *{}*. Ahora estamos en *{}* hasta las {}. ¿Te comparto el menú? 🍽️",
+        "{} ¡Qué gusto saludarte! {} Aquí *{}* de *{}*. En este momento servimos *{}* (hasta {}). ¿Te interesa?",
+        "{} ¡Bienvenido a *{}*! {} Soy *{}*. Estamos en horario de *{}* hasta las {}. ¿Quieres ver qué hay?",
+        "{} ¡Hola! {} Te habla *{}* de *{}*. Ahora es hora de *{}* (cierra a las {}). ¿Te mando la info?",
+        "{} ¡Gracias por escribir! {} Soy *{}*. En *{}* estamos con *{}* hasta las {}. ¿Te gustaría saber qué tenemos?"
     ],
     "saludo_sin_menu": [
-        "{} ¡{}! 🌅 Soy *{}* de *{}*. En este momento no tenemos servicio activo. Nuestro horario es *{}*. ¿Te esperamos más tarde? 🙏",
-        "{} ¡Qué gusto verte! ✨ Aquí *{}*. Por ahora no estamos sirviendo (horario: {}). ¡Te esperamos en nuestro próximo horario! 🌈",
-        "{} ¡Hola! ☕ Te atiende *{}*. Cerramos por ahora, pero abrimos en *{}*. ¿Quieres que te avise cuando abramos? 🔔",
-        "{} ¡Bienvenido a *{}*! 🌟 Lamento informarte que en este momento no tenemos servicio. Nuestro horario es {}. ¡Gracias por escribir! 💫"
+        "{} ¡{}! {} Soy *{}* de *{}*. Ahora no tenemos servicio activo. Nuestro horario es *{}*. ¡Te esperamos!",
+        "{} ¡Qué gusto verte! {} Aquí *{}* de *{}*. Por ahora no estamos sirviendo (horario: {}). ¡Te esperamos!",
+        "{} ¡Hola! {} Te atiende *{}* de *{}*. Cerramos por ahora, abrimos en *{}*. ¡Gracias por escribir! 🙏"
     ],
     "menu_con_audio": [
-        "{} ¡Claro! 😊 Te mando la información de nuestros *{}* {}:",
+        "{} ¡Claro! {} Te mando la información de nuestros *{}*:",
         "{} Con mucho gusto {} Te comparto el detalle de los *{}*:",
-        "{} ¡Ahí te va! 🎙️ Escucha el menú de *{}*:",
+        "{} ¡Ahí te va! 🎙️ Escucha el menú de *{}* {}:",
         "{} Por supuesto {} Aquí tienes la información de *{}*:"
     ],
     "menu_sin_audio": [
-        "{} Por el momento no tengo el menú disponible {} ¿Quieres que te llame alguien para ayudarte? 🤝",
-        "{} ¡Ups! {} Aún no cargo el menú de *{}*. ¿Te parece si te contacta un asesor? 📞",
-        "{} Lo siento {} El menú de *{}* no está listo todavía. ¿Prefieres que te llamemos? 🙏"
+        "{} Por el momento no tengo el menú disponible {} ¿Quieres que te llame alguien? 🤝",
+        "{} ¡Ups! {} Aún no cargo el menú de *{}*. ¿Te parece si te contacta alguien? 📞",
+        "{} Lo siento {} El menú de *{}* no está listo. ¿Prefieres que te llamemos? 🙏"
     ],
     "precio_con_audio": [
         "{} ¡Claro! {} En este audio te decimos los precios de *{}*: 💰",
@@ -90,21 +88,21 @@ RESPUESTAS = {
     ],
     "precio_sin_audio": [
         "{} Para darte información de precios {} ¿Quieres que te llamemos? 📞",
-        "{} Lo siento {} No tengo los precios a la mano. ¿Te parece si te contacta un asesor? 🤝"
+        "{} Lo siento {} No tengo los precios a la mano. ¿Te parece si alguien te contacta? 🤝"
     ],
     "ubicacion": [
         "{} *{}* se encuentra en:\n📍 {}\n\n📞 Teléfono: {}\n\n{} ¡Te esperamos! 🙏",
-        "{} Estamos en {} 🌐\n📞 Contáctanos al {}\n\n📍 Dirección: {}\n\n{} ¿Necesitas indicaciones? 🧭",
-        "{} Aquí está nuestra dirección:\n🏠 {}\n📞 {}\n\n{} ¡Llegar es fácil! 🚩"
+        "{} Estamos en:\n🏠 {}\n📞 {}\n\n{} ¡Llegar es fácil! 🚩",
+        "{} Aquí nuestra dirección:\n📍 *{}*\n📞 {}\n\n{} ¿Necesitas indicaciones? 🧭"
     ],
     "horario": [
-        "{} Te comparto nuestro horario {}:\n\n📅 *{}*\n🕐 *{}*\n\n{} Además, por categoría:\n{}\n\n{} ¡Te esperamos! 🙏",
-        "{} Nuestros horarios son {}:\n• Días: *{}*\n• Horario general: *{}*\n\n{} Por tiempo de comida:\n{}\n\n{} ¿Alguna duda? ✨"
+        "{} Te comparto nuestro horario {}:\n\n📅 *{}*\n🕐 *{}*\n\n{} Por categoría:\n{}\n{} ¡Te esperamos!",
+        "{} Nuestros horarios {}:\n• Días: *{}*\n• General: *{}*\n\n{} Por comida:\n{}\n{} ¿Alguna duda? ✨"
     ],
     "pedido_pregunta": [
-        "{} ¡Perfecto! {} ¿Quieres que te llamemos para coordinar tu pedido? 📞",
-        "{} Con gusto te ayudamos {} ¿Te parece si un asesor te llama para tomar tu pedido? 🤝",
-        "{} ¡Excelente! {} ¿Preferes que te llamemos o vienes directamente al local? 🏠"
+        "{} ¡Perfecto! {} ¿Quieres que te llamemos para coordinar tu pedido o nos visitas? 📞",
+        "{} Con gusto te ayudamos {} ¿Te parece si alguien te llama para tu pedido? 🤝",
+        "{} ¡Excelente! {} ¿Prefieres que te llamemos o vienes directo al local? 🏠"
     ],
     "cliente_si": [
         "{} ¡Perfecto! {} En unos momentos alguien se comunica contigo. ¡Gracias por preferirnos! 🙏",
@@ -112,9 +110,13 @@ RESPUESTAS = {
         "{} ¡Excelente! {} Gracias por tu interés. Pronto te llamamos. ✨"
     ],
     "cliente_no": [
-        "{} Sin problema {} Gracias por contactarnos. ¡Qué tengas un excelente día! 🌟",
+        "{} Sin problema {} Gracias por contactarnos. ¡Que tengas excelente día! 🌟",
         "{} Entendido {} Estamos aquí cuando gustes. ¡Hasta pronto! 👋",
         "{} Gracias de todas formas {} Recuerda que siempre serás bienvenido. 🙏"
+    ],
+    "cliente_visita": [
+        "{} ¡Perfecto! {} Te esperamos en *{}*.\n📍 {}\n\n¡Buen provecho! 🍽️",
+        "{} ¡Qué gusto! {} Nos vemos en *{}*.\n📍 {}\n\n¡Te esperamos con gusto! 🙌"
     ],
     "despedida": [
         "{} ¡Gracias a ti! {} Fue un placer atenderte. ¡Hasta pronto! 👋",
@@ -123,27 +125,27 @@ RESPUESTAS = {
     ],
     "desconocido": [
         "{} Gracias por contactar a *{}*, soy *{}*. No tengo esa información {} Voy a avisar para que alguien te contacte. 🙏",
-        "{} ¡Hola! 🙌 Soy *{}* de *{}*. No entendí bien tu mensaje {} ¿Te parece si alguien del equipo te escribe? 📞"
+        "{} ¡Hola! {} Soy *{}* de *{}*. No entendí bien tu mensaje. ¿Te parece si alguien del equipo te escribe? 📞"
     ],
     "cerrado": [
-        "{} Hoy estamos cerrados ({}) {}\n\nNuestro horario habitual es {} ({}). ¡Te esperamos pronto! 🙏",
-        "{} Lo sentimos mucho {} Hoy descansamos ({}) {}\n\nTe atendemos en horario {} ({}). 🌟"
+        "{} Hoy estamos cerrados ({}) {}\n\nNuestro horario habitual es *{}* ({}). ¡Te esperamos pronto! 🙏",
+        "{} Lo sentimos {} Hoy descansamos ({}).\n\nTe atendemos en horario *{}* ({}). 🌟"
     ],
     "no_dia_laboral": [
-        "{} Hoy descansamos {} Te atendemos {} en horario {}. ¡Gracias por escribir! 🙏",
-        "{} Gracias por contactarnos {} Nuestros días de atención son {}. Estaremos encantados de atenderte pronto. 🌈"
+        "{} Hoy descansamos {} Te atendemos *{}* en horario *{}*. ¡Gracias por escribir! 🙏",
+        "{} Gracias por contactarnos {} Nuestros días de atención son *{}*. ¡Estaremos encantados de atenderte! 🌈"
     ],
     "categoria_inactiva_con_proxima": [
-        "{} En este momento no tenemos servicio activo {} Pero a las *{}* comenzamos con *{}*. ¿Te esperamos? 🙏",
-        "{} Cerramos por ahora {} Nuestra próxima categoría es *{}* a las {}. ¡Te esperamos! ✨",
-        "{} Lo siento {} Ahora no estamos sirviendo. Abrimos de nuevo en *{}* a las {}. 🌟"
+        "{} En este momento no tenemos servicio activo {} Pero a las *{}* comenzamos con *{}*. ¡Te esperamos! 🙏",
+        "{} Cerramos por ahora {} Nuestra próxima categoría es *{}* a las *{}*. ¡Te esperamos! ✨",
+        "{} Lo siento {} Ahora no estamos sirviendo. Abrimos de nuevo en *{}* a las *{}*. 🌟"
     ]
 }
 
 def get_emoji(categoria):
     return random.choice(EMOJIS.get(categoria, ["✨"]))
 
-def get_respuesta(categoria, idx=0):
+def get_respuesta(categoria):
     lista = RESPUESTAS.get(categoria, ["{} {}"])
     return random.choice(lista)
 
@@ -160,7 +162,6 @@ def init_db():
             valor TEXT
         )
     """)
-
     c.execute("""
         CREATE TABLE IF NOT EXISTS categorias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,7 +172,6 @@ def init_db():
             activa INTEGER DEFAULT 1
         )
     """)
-
     c.execute("""
         CREATE TABLE IF NOT EXISTS interesados (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,7 +181,6 @@ def init_db():
             atendido INTEGER DEFAULT 0
         )
     """)
-
     c.execute("""
         CREATE TABLE IF NOT EXISTS onboarding (
             numero TEXT PRIMARY KEY,
@@ -189,14 +188,12 @@ def init_db():
             categoria_actual TEXT
         )
     """)
-
     c.execute("""
         CREATE TABLE IF NOT EXISTS cierres (
             fecha TEXT PRIMARY KEY,
             motivo TEXT
         )
     """)
-
     c.execute("""
         CREATE TABLE IF NOT EXISTS clientes (
             numero TEXT PRIMARY KEY,
@@ -205,7 +202,6 @@ def init_db():
             fecha_registro TEXT
         )
     """)
-
     con.commit()
     con.close()
 
@@ -287,13 +283,12 @@ def registrar_interesado(numero):
               (numero, now.strftime("%Y-%m-%d"), now.strftime("%H:%M")))
     con.commit()
     con.close()
-    
-    if TELEFONO_B:
-        enviar_texto(TELEFONO_B,
+    tb = leer_archivo(BPATH)
+    if tb:
+        enviar_texto(tb,
             f"📞 *CLIENTE INTERESADO EN PEDIDO*\n\n"
             f"El cliente *{numero.replace('@s.whatsapp.net','')}* "
-            f"solicita que lo llamen.\n\n"
-            f"Hora: {now.strftime('%H:%M')}"
+            f"solicita que lo llamen.\n\nHora: {now.strftime('%H:%M')}"
         )
 
 def es_cierre_hoy():
@@ -305,7 +300,7 @@ def es_cierre_hoy():
     con.close()
     return row[0] if row else None
 
-def guardar_cierre(fecha, motivo="Día de descanso"):
+def guardar_cierre(fecha, motivo="Dia de descanso"):
     con = sqlite3.connect(DBPATH)
     c = con.cursor()
     c.execute("INSERT OR REPLACE INTO cierres(fecha,motivo) VALUES(?,?)", (fecha, motivo))
@@ -322,7 +317,16 @@ def get_cliente(numero):
         return {"nombre": row[0], "primera_vez": row[1]}
     return None
 
-def guardar_cliente(numero, nombre):
+def registrar_cliente_nuevo(numero):
+    """Registra al cliente con primera_vez=1 para capturar su nombre"""
+    con = sqlite3.connect(DBPATH)
+    c = con.cursor()
+    c.execute("INSERT OR IGNORE INTO clientes(numero,nombre,primera_vez,fecha_registro) VALUES(?,?,1,?)",
+              (numero, "", datetime.now().strftime("%Y-%m-%d")))
+    con.commit()
+    con.close()
+
+def guardar_nombre_cliente(numero, nombre):
     con = sqlite3.connect(DBPATH)
     c = con.cursor()
     c.execute("INSERT OR REPLACE INTO clientes(numero,nombre,primera_vez,fecha_registro) VALUES(?,?,0,?)",
@@ -330,62 +334,57 @@ def guardar_cliente(numero, nombre):
     con.commit()
     con.close()
 
-def marcar_cliente_atendido(numero):
-    con = sqlite3.connect(DBPATH)
-    c = con.cursor()
-    c.execute("UPDATE clientes SET primera_vez=0 WHERE numero=?", (numero,))
-    con.commit()
-    con.close()
-
 # ════════════════════════════════════════════════════════════
 #  ENVÍO DE MENSAJES VÍA WUZAPI
 # ════════════════════════════════════════════════════════════
-def headers():
-    return {"Token": TOKEN, "Content-Type": "application/json"}
+def get_headers():
+    tok = leer_archivo(TOKENPATH)
+    return {"Token": tok, "Content-Type": "application/json"}
 
 def enviar_texto(numero, texto):
     try:
         phone = numero.replace("@s.whatsapp.net", "").replace("@g.us", "")
         r = requests.post(f"{WUZAPI}/chat/send/text",
-                          headers=headers(),
+                          headers=get_headers(),
                           json={"Phone": phone, "Body": texto},
                           timeout=10)
-        log(f"ENVÍO TEXTO → {phone}: {texto[:60]}")
+        log(f"ENVIO → {phone}: {texto[:60]}")
         return r.status_code == 200
     except Exception as e:
-        log(f"ERROR enviando texto: {e}")
+        log(f"ERROR enviar texto: {e}")
         return False
 
 def enviar_audio(numero, audio_path):
     try:
-        phone = numero.replace("@s.whatsapp.net", "").replace("@g.us", "")
         import base64
+        phone = numero.replace("@s.whatsapp.net", "").replace("@g.us", "")
         with open(audio_path, "rb") as f:
             data = base64.b64encode(f.read()).decode()
-        ext = os.path.splitext(audio_path)[1].lower()
+        ext  = os.path.splitext(audio_path)[1].lower()
         mime = "audio/ogg; codecs=opus" if ext in [".ogg", ".opus"] else "audio/mpeg"
         r = requests.post(f"{WUZAPI}/chat/send/audio",
-                          headers=headers(),
-                          json={"Phone": phone, "Audio": data, "FileName": os.path.basename(audio_path)},
+                          headers=get_headers(),
+                          json={"Phone": phone, "Audio": data,
+                                "FileName": os.path.basename(audio_path)},
                           timeout=20)
-        log(f"ENVÍO AUDIO → {phone}: {audio_path}")
+        log(f"ENVIO AUDIO → {phone}: {audio_path}")
         return r.status_code == 200
     except Exception as e:
-        log(f"ERROR enviando audio: {e}")
+        log(f"ERROR enviar audio: {e}")
         return False
 
 def descargar_audio_wuzapi(msg_id, mime_type="audio/ogg"):
     try:
         r = requests.get(f"{WUZAPI}/chat/downloadmedia/{msg_id}",
-                         headers=headers(), timeout=15)
+                         headers=get_headers(), timeout=15)
         if r.status_code == 200:
-            ext = ".ogg" if "ogg" in mime_type else ".mp3"
+            ext  = ".ogg" if "ogg" in mime_type else ".mp3"
             path = os.path.join(AUDIODIR, f"temp_{msg_id}{ext}")
             with open(path, "wb") as f:
                 f.write(r.content)
             return path
     except Exception as e:
-        log(f"ERROR descargando audio: {e}")
+        log(f"ERROR descarga audio: {e}")
     return None
 
 # ════════════════════════════════════════════════════════════
@@ -396,7 +395,7 @@ def hora_actual():
 
 def hora_a_minutos(h):
     try:
-        partes = h.replace(".", ":").split(":")
+        partes = str(h).replace(".", ":").split(":")
         return int(partes[0]) * 60 + int(partes[1])
     except:
         return 0
@@ -404,106 +403,112 @@ def hora_a_minutos(h):
 def saludo_por_hora():
     h = int(datetime.now().strftime("%H"))
     if 5 <= h < 12:
-        return random.choice(["¡Buenos días!", "¡Hermana mañana!", "¡Qué tal tu mañana!", "¡Excelente día!"])
+        return random.choice(["¡Buenos días!", "¡Qué tal tu mañana!", "¡Excelente día!"])
     elif 12 <= h < 19:
-        return random.choice(["¡Buenas tardes!", "¡Qué tal esta tarde!", "¡Linda tarde!", "¡Excelente tarde!"])
+        return random.choice(["¡Buenas tardes!", "¡Qué tal esta tarde!", "¡Linda tarde!"])
     else:
-        return random.choice(["¡Buenas noches!", "¡Qué tal tu noche!", "¡Linda noche!", "¡Gracias por escribir tan noche!"])
+        return random.choice(["¡Buenas noches!", "¡Qué tal tu noche!", "¡Gracias por escribir!"])
 
 def categoria_activa_ahora():
     ahora = hora_a_minutos(hora_actual())
     for cat in get_categorias():
-        inicio = hora_a_minutos(cat["inicio"])
-        fin    = hora_a_minutos(cat["fin"])
-        if inicio <= ahora <= fin:
+        if hora_a_minutos(cat["inicio"]) <= ahora <= hora_a_minutos(cat["fin"]):
             return cat
     return None
 
+def proxima_categoria():
+    ahora = hora_a_minutos(hora_actual())
+    proxima = None
+    for cat in get_categorias():
+        ini = hora_a_minutos(cat["inicio"])
+        if ini > ahora:
+            if proxima is None or ini < hora_a_minutos(proxima["inicio"]):
+                proxima = cat
+    return proxima
+
 def dia_laboral_hoy():
     dias_config = get_config("dias_trabajo", "lunes a domingo").lower()
-    hoy_num = datetime.now().weekday()
-    dias_map = {
-        "lunes": 0, "martes": 1, "miércoles": 2, "miercoles": 2,
-        "jueves": 3, "viernes": 4, "sábado": 5, "sabado": 5, "domingo": 6
-    }
-    if "lunes a domingo" in dias_config or "todos los días" in dias_config or "toda la semana" in dias_config:
+    hoy = datetime.now().weekday()  # 0=lunes
+    if any(x in dias_config for x in ["lunes a domingo", "todos los dias", "toda la semana", "siete dias"]):
         return True
-    if "lunes a viernes" in dias_config and hoy_num <= 4:
+    if "lunes a viernes" in dias_config and hoy <= 4:
         return True
-    if "lunes a sábado" in dias_config or "lunes a sabado" in dias_config:
-        if hoy_num <= 5:
-            return True
+    if ("lunes a sabado" in dias_config or "lunes a sábado" in dias_config) and hoy <= 5:
+        return True
+    dias_map = {"lunes":0,"martes":1,"miercoles":2,"miércoles":2,"jueves":3,"viernes":4,"sabado":5,"sábado":5,"domingo":6}
     for nombre, num in dias_map.items():
-        if nombre in dias_config and hoy_num == num:
+        if nombre in dias_config and hoy == num:
             return True
     return False
 
-def nombre_negocio():
-    return get_config("nombre_negocio", "nuestro negocio")
-
-def nombre_asistente():
-    return get_config("nombre_asistente", "el asistente")
-
-def horario_general():
-    return get_config("horario_general", "nuestro horario habitual")
-
-def dias_trabajo():
-    return get_config("dias_trabajo", "todos los días")
-
-def direccion():
-    return get_config("direccion", "")
-
-def telefono_contacto():
-    return get_config("telefono_contacto", "")
-
-def redes_sociales():
-    return get_config("redes_sociales", "")
-
-def respuesta_si():
-    return get_config("respuesta_si", "Gracias por tu interés, en breve nos comunicamos contigo.")
+# Helpers de config
+def nombre_negocio():    return get_config("nombre_negocio", "nuestro negocio")
+def nombre_asistente():  return get_config("nombre_asistente", "el asistente")
+def horario_general():   return get_config("horario_general", "nuestro horario habitual")
+def dias_trabajo():      return get_config("dias_trabajo", "todos los dias")
+def get_direccion():     return get_config("direccion", "")
+def get_telefono():      return get_config("telefono_contacto", "")
+def get_redes():         return get_config("redes_sociales", "")
+def respuesta_si():      return get_config("respuesta_si", "Gracias por tu interes, en breve nos comunicamos contigo.")
 
 # ════════════════════════════════════════════════════════════
-#  PROMPT MAESTRO — MOTOR DE RESPUESTAS AL CLIENTE (VARIADO)
+#  DETECCIÓN DE INTENCIÓN
 # ════════════════════════════════════════════════════════════
-
 INTENCIONES = {
     "saludo": [
-        "hola", "buenas", "buenos días", "buenos dias", "buen día", "buen dia",
-        "buenas tardes", "buenas noches", "qué tal", "que tal", "hey", "hi",
-        "quiubo", "quiúbo", "qué onda", "que onda", "saludos"
+        "hola","buenas","buenos dias","buenos días","buen dia","buen día",
+        "buenas tardes","buenas noches","que tal","qué tal","hey","hi",
+        "quiubo","quiúbo","que onda","qué onda","saludos","alo","aló","oiga","oye"
     ],
     "menu": [
-        "menú", "menu", "qué tienen", "que tienen", "qué hay", "que hay",
-        "qué tienen hoy", "que tienen hoy", "qué comen", "que comen",
-        "qué sirven", "que sirven", "qué venden", "que venden",
-        "qué me recomiendas", "que me recomiendas", "carta", "platillos",
-        "para comer", "de comer", "desayuno", "desayunos", "comida", "comidas",
-        "cena", "cenas", "almuerzo", "qué ofrecen", "que ofrecen"
+        "menú","menu","que tienen","qué tienen","que hay","qué hay",
+        "que tienen hoy","que sirven","que venden","que me recomiendas",
+        "carta","platillos","para comer","de comer","desayuno","desayunos",
+        "comida","comidas","cena","cenas","almuerzo","que ofrecen","mandame el menu",
+        "mandame la carta","tienen desayuno","tienen comida","hay comida","hay desayuno"
     ],
     "ubicacion": [
-        "dónde están", "donde estan", "dónde quedan", "donde quedan",
-        "dirección", "direccion", "cómo llego", "como llego",
-        "dónde se ubican", "donde se ubican", "en qué calle", "domicilio"
+        "donde estan","dónde estan","donde quedan","dónde quedan",
+        "direccion","dirección","como llego","cómo llego",
+        "donde se ubican","en que calle","domicilio","donde los ubico","como llegar"
     ],
     "horario": [
-        "horario", "a qué hora abren", "a que hora abren",
-        "a qué hora cierran", "a que hora cierran", "cuándo abren",
-        "están abiertos", "hasta qué hora", "qué días trabajan"
+        "horario","a que hora abren","a qué hora abren",
+        "a que hora cierran","cuando abren","estan abiertos","hasta que hora",
+        "que dias trabajan","trabajan hoy","abren hoy","dias de atencion"
     ],
     "pedido": [
-        "quiero pedir", "hacer un pedido", "quiero ordenar",
-        "a domicilio", "delivery", "que me llamen", "llámame"
+        "quiero pedir","hacer un pedido","quiero ordenar",
+        "a domicilio","delivery","que me llamen","llamame","llámenme",
+        "me hablan","quiero que me llamen","pueden llamarme"
+    ],
+    "ir_al_lugar": [
+        "voy para alla","voy para allá","ahorita voy","ya voy","me voy para alla",
+        "voy llegando","voy a ir","llego en","llego mas tarde","paso al rato",
+        "voy a pasar","ire","voy a visitarlos"
+    ],
+    "confirmacion_llamada": [
+        "si","sí","si por favor","claro","ok","esta bien","está bien",
+        "adelante","por favor","si quiero","sí quiero","orale","órale","andale"
+    ],
+    "negacion_llamada": [
+        "no","no gracias","ahorita no","ya no","no quiero",
+        "no necesito","namas","nomás","solo queria saber"
     ],
     "precio": [
-        "cuánto cuesta", "cuanto cuesta", "cuánto vale", "precios", "qué precio"
+        "cuanto cuesta","cuánto cuesta","cuanto vale","precios","que precio",
+        "qué precio","cuanto es","cuanto cobran","cuanto sale"
     ],
     "redes": [
-        "facebook", "instagram", "redes sociales", "red social"
+        "facebook","instagram","redes sociales","red social","fan page","su instagram","su facebook"
     ],
     "despedida": [
-        "gracias", "muchas gracias", "hasta luego", "bye", "adios", "provecho"
+        "gracias","muchas gracias","hasta luego","bye","adios","adiós","provecho","nos vemos"
     ]
 }
+
+# Estado por conversación — rastrea si se le preguntó si quiere llamada
+ESPERANDO_RESPUESTA_LLAMADA = {}
 
 def detectar_intencion(texto):
     t = texto.lower().strip()
@@ -513,370 +518,482 @@ def detectar_intencion(texto):
                 return intencion
     return "desconocido"
 
-def cliente_quiere_llamada(numero, texto):
-    confirmaciones = ["sí", "si", "sí por favor", "claro", "ok", "está bien", "adelante", "por favor", "sí quiero", "si quiero"]
-    negativas = ["no", "no gracias", "ahorita no", "ya no", "no quiero"]
-    t = texto.lower().strip()
-    
-    if any(c in t for c in confirmaciones):
-        registrar_interesado(numero)
-        emo = get_emoji("aprobacion")
-        template = get_respuesta("cliente_si")
-        msg = template.format(emo, get_emoji("saludo"), respuesta_si())
-        enviar_texto(numero, msg)
-        return True
-    if any(n in t for n in negativas):
-        emo = get_emoji("saludo")
-        template = get_respuesta("cliente_no")
-        msg = template.format(emo, get_emoji("aprobacion"))
-        enviar_texto(numero, msg)
-        return True
-    return False
-
-def preguntar_nombre(numero):
-    enviar_texto(numero, f"{get_emoji('saludo')} ¡Hola! {get_emoji('comida')} ¿Cómo te llamas? (Responde con tu nombre) 😊")
-
-def responder_cliente(numero, texto):
-    negocio = nombre_negocio()
+# ════════════════════════════════════════════════════════════
+#  RESPONDER AL CLIENTE
+# ════════════════════════════════════════════════════════════
+def responder_cliente(sender, texto):
+    negocio   = nombre_negocio()
     asistente = nombre_asistente()
-    saludo_hora = saludo_por_hora()
-    
-    # Verificar si el cliente ya tiene nombre
-    cliente = get_cliente(numero)
-    if cliente and cliente["primera_vez"] == 1:
-        # Es primera vez, preguntar nombre
-        preguntar_nombre(numero)
-        marcar_cliente_atendido(numero)
+    saludo    = saludo_por_hora()
+    cliente   = get_cliente(sender)
+
+    # ── Cliente nuevo — registrar y pedir nombre ─────────────
+    if not cliente:
+        registrar_cliente_nuevo(sender)
+        enviar_texto(sender,
+            f"{get_emoji('saludo')} ¡Hola! {get_emoji('comida')} Bienvenido a *{negocio}*.\n\n"
+            f"Soy *{asistente}*. ¿Me puedes decir tu nombre? 😊"
+        )
         return
-    
+
+    # ── Esperando nombre del cliente ─────────────────────────
+    if cliente["primera_vez"] == 1:
+        nombre = texto.strip()
+        if nombre and len(nombre) < 50 and not any(c.isdigit() for c in nombre):
+            guardar_nombre_cliente(sender, nombre)
+            enviar_texto(sender,
+                f"{get_emoji('saludo')} ¡Mucho gusto *{nombre}*! {get_emoji('comida')} "
+                f"¿En qué te puedo ayudar? (Desayuno, Comida, Horarios, Ubicación...) 😊"
+            )
+        else:
+            enviar_texto(sender,
+                f"{get_emoji('saludo')} No entendí tu nombre. ¿Me lo puedes escribir de nuevo? 🙏"
+            )
+        return
+
+    # ── Verificar si está esperando respuesta a llamada ─────
+    if ESPERANDO_RESPUESTA_LLAMADA.get(sender):
+        intencion = detectar_intencion(texto)
+        if intencion == "confirmacion_llamada":
+            ESPERANDO_RESPUESTA_LLAMADA.pop(sender, None)
+            registrar_interesado(sender)
+            template = get_respuesta("cliente_si")
+            enviar_texto(sender, template.format(get_emoji("aprobacion"), get_emoji("saludo"), respuesta_si()))
+            return
+        elif intencion == "negacion_llamada":
+            ESPERANDO_RESPUESTA_LLAMADA.pop(sender, None)
+            template = get_respuesta("cliente_no")
+            enviar_texto(sender, template.format(get_emoji("despedida"), get_emoji("saludo")))
+            return
+        elif intencion == "ir_al_lugar":
+            ESPERANDO_RESPUESTA_LLAMADA.pop(sender, None)
+            template = get_respuesta("cliente_visita")
+            enviar_texto(sender, template.format(get_emoji("aprobacion"), get_emoji("saludo"),
+                                                  negocio, get_direccion()))
+            return
+
+    # ── Cierre especial hoy ──────────────────────────────────
     cierre = es_cierre_hoy()
     if cierre:
-        emo = get_emoji("saludo")
         template = get_respuesta("cerrado")
-        msg = template.format(emo, cierre, get_emoji("horario"), horario_general(), dias_trabajo())
-        enviar_texto(numero, msg)
+        enviar_texto(sender, template.format(get_emoji("saludo"), cierre,
+                                              get_emoji("horario"), horario_general(), dias_trabajo()))
         return
-    
+
+    # ── No es día laboral ────────────────────────────────────
     if not dia_laboral_hoy():
-        emo = get_emoji("saludo")
         template = get_respuesta("no_dia_laboral")
-        msg = template.format(emo, get_emoji("horario"), dias_trabajo(), horario_general())
-        enviar_texto(numero, msg)
+        enviar_texto(sender, template.format(get_emoji("saludo"), get_emoji("horario"),
+                                              dias_trabajo(), horario_general()))
         return
-    
+
     intencion = detectar_intencion(texto)
     cat = categoria_activa_ahora()
-    
-    nombre_cliente = cliente["nombre"] if cliente else ""
-    
+
+    # ── SALUDO ───────────────────────────────────────────────
     if intencion == "saludo":
         if cat:
             template = get_respuesta("saludo_con_menu")
-            msg = template.format(get_emoji("saludo"), saludo_hora, asistente, negocio, cat["nombre"].capitalize(), cat["fin"])
-            enviar_texto(numero, msg)
-        elif get_categorias():
-            # Buscar próxima categoría
-            ahora = hora_a_minutos(hora_actual())
-            proxima = None
-            for c in get_categorias():
-                if hora_a_minutos(c["inicio"]) > ahora:
-                    if proxima is None or hora_a_minutos(c["inicio"]) < hora_a_minutos(proxima["inicio"]):
-                        proxima = c
-            if proxima:
+            enviar_texto(sender, template.format(get_emoji("saludo"), saludo, asistente,
+                                                  negocio, cat["nombre"].capitalize(), cat["fin"]))
+        else:
+            prox = proxima_categoria()
+            if prox:
                 template = get_respuesta("categoria_inactiva_con_proxima")
-                msg = template.format(get_emoji("saludo"), get_emoji("horario"), proxima["nombre"].capitalize(), proxima["inicio"])
-                enviar_texto(numero, msg)
+                enviar_texto(sender, template.format(get_emoji("saludo"), get_emoji("horario"),
+                                                      prox["inicio"], prox["nombre"].capitalize()))
             else:
                 template = get_respuesta("saludo_sin_menu")
-                msg = template.format(get_emoji("saludo"), saludo_hora, asistente, negocio, horario_general())
-                enviar_texto(numero, msg)
-        else:
-            template = get_respuesta("saludo_sin_menu")
-            msg = template.format(get_emoji("saludo"), saludo_hora, asistente, negocio, horario_general())
-            enviar_texto(numero, msg)
+                enviar_texto(sender, template.format(get_emoji("saludo"), saludo,
+                                                      get_emoji("horario"), asistente, negocio, horario_general()))
         return
-    
+
+    # ── MENÚ ─────────────────────────────────────────────────
     if intencion == "menu":
         if cat and cat.get("audio") and os.path.exists(cat["audio"]):
-            emo1 = get_emoji("menu")
-            emo2 = get_emoji("comida")
             template = get_respuesta("menu_con_audio")
-            msg = template.format(emo1, emo2, cat["nombre"].capitalize(), get_emoji("aprobacion"))
-            enviar_texto(numero, msg)
+            enviar_texto(sender, template.format(get_emoji("menu"), get_emoji("comida"),
+                                                  cat["nombre"].capitalize(), get_emoji("aprobacion")))
             time.sleep(1)
-            enviar_audio(numero, cat["audio"])
-        else:
-            emo = get_emoji("menu")
+            enviar_audio(sender, cat["audio"])
+            time.sleep(1)
+            # Invitar a pedir
+            template2 = get_respuesta("pedido_pregunta")
+            enviar_texto(sender, template2.format(get_emoji("comida"), get_emoji("aprobacion")))
+            ESPERANDO_RESPUESTA_LLAMADA[sender] = True
+        elif cat:
             template = get_respuesta("menu_sin_audio")
-            cat_nombre = cat["nombre"] if cat else "comida"
-            msg = template.format(emo, get_emoji("saludo"), cat_nombre.capitalize())
-            enviar_texto(numero, msg)
+            enviar_texto(sender, template.format(get_emoji("menu"), get_emoji("saludo"),
+                                                  cat["nombre"].capitalize()))
+        else:
+            prox = proxima_categoria()
+            if prox:
+                template = get_respuesta("categoria_inactiva_con_proxima")
+                enviar_texto(sender, template.format(get_emoji("saludo"), get_emoji("horario"),
+                                                      prox["inicio"], prox["nombre"].capitalize()))
+            else:
+                template = get_respuesta("saludo_sin_menu")
+                enviar_texto(sender, template.format(get_emoji("saludo"), saludo,
+                                                      get_emoji("horario"), asistente, negocio, horario_general()))
         return
-    
+
+    # ── PRECIO ───────────────────────────────────────────────
     if intencion == "precio":
         if cat and cat.get("audio") and os.path.exists(cat["audio"]):
-            emo1 = get_emoji("precio")
-            emo2 = get_emoji("comida")
             template = get_respuesta("precio_con_audio")
-            msg = template.format(emo1, emo2, cat["nombre"].capitalize())
-            enviar_texto(numero, msg)
+            enviar_texto(sender, template.format(get_emoji("precio"), get_emoji("comida"),
+                                                  cat["nombre"].capitalize()))
             time.sleep(1)
-            enviar_audio(numero, cat["audio"])
+            enviar_audio(sender, cat["audio"])
         else:
-            emo = get_emoji("precio")
             template = get_respuesta("precio_sin_audio")
-            msg = template.format(emo, get_emoji("saludo"))
-            enviar_texto(numero, msg)
+            enviar_texto(sender, template.format(get_emoji("precio"), get_emoji("saludo")))
         return
-    
+
+    # ── UBICACIÓN ─────────────────────────────────────────────
     if intencion == "ubicacion":
-        emo1 = get_emoji("ubicacion")
-        emo2 = get_emoji("saludo")
+        tel = get_telefono() or "No disponible"
         template = get_respuesta("ubicacion")
-        telefono = telefono_contacto() if telefono_contacto() else "No disponible"
-        msg = template.format(emo1, negocio, direccion(), telefono, emo2)
-        enviar_texto(numero, msg)
+        enviar_texto(sender, template.format(get_emoji("ubicacion"), negocio,
+                                              get_direccion(), tel, get_emoji("saludo")))
         return
-    
+
+    # ── HORARIO ───────────────────────────────────────────────
     if intencion == "horario":
-        emo1 = get_emoji("horario")
-        emo2 = get_emoji("saludo")
-        emo3 = get_emoji("menu")
-        template = get_respuesta("horario")
         cats_text = ""
         for c in get_categorias():
             cats_text += f"• *{c['nombre'].capitalize()}*: {c['inicio']} a {c['fin']}\n"
-        msg = template.format(emo1, emo2, dias_trabajo(), horario_general(), emo3, cats_text, get_emoji("aprobacion"))
-        enviar_texto(numero, msg)
+        template = get_respuesta("horario")
+        enviar_texto(sender, template.format(get_emoji("horario"), get_emoji("saludo"),
+                                              dias_trabajo(), horario_general(),
+                                              get_emoji("menu"), cats_text, get_emoji("aprobacion")))
         return
-    
-    if intencion == "pedido":
-        emo = get_emoji("comida")
-        template = get_respuesta("pedido_pregunta")
-        msg = template.format(emo, get_emoji("aprobacion"))
-        enviar_texto(numero, msg)
-        return
-    
-    if intencion == "redes":
-        if redes_sociales():
-            enviar_texto(numero, f"{get_emoji('saludo')} ¡Gracias por el interés! {get_emoji('aprobacion')}\n\n{redes_sociales()}\n\n{get_emoji('despedida')} ¡Síguenos y comparte tu experiencia! ⭐")
+
+    # ── PEDIDO ───────────────────────────────────────────────
+    if intencion in ["pedido", "ir_al_lugar"]:
+        if intencion == "ir_al_lugar":
+            template = get_respuesta("cliente_visita")
+            enviar_texto(sender, template.format(get_emoji("aprobacion"), get_emoji("saludo"),
+                                                  negocio, get_direccion()))
         else:
-            enviar_texto(numero, f"{get_emoji('saludo')} Por el momento no tenemos redes sociales activas {get_emoji('horario')} Pero puedes contactarnos directamente por aquí. 🙏")
+            template = get_respuesta("pedido_pregunta")
+            enviar_texto(sender, template.format(get_emoji("comida"), get_emoji("aprobacion")))
+            ESPERANDO_RESPUESTA_LLAMADA[sender] = True
         return
-    
+
+    # ── REDES SOCIALES ────────────────────────────────────────
+    if intencion == "redes":
+        if get_redes():
+            enviar_texto(sender,
+                f"{get_emoji('saludo')} ¡Gracias por el interés! {get_emoji('aprobacion')}\n\n"
+                f"{get_redes()}\n\n{get_emoji('despedida')} ¡Síguenos y comparte tu experiencia! ⭐"
+            )
+        else:
+            enviar_texto(sender,
+                f"{get_emoji('saludo')} Por el momento no tenemos redes sociales activas. "
+                f"Puedes contactarnos directamente por aquí. 🙏"
+            )
+        return
+
+    # ── DESPEDIDA ─────────────────────────────────────────────
     if intencion == "despedida":
-        emo = get_emoji("despedida")
         template = get_respuesta("despedida")
-        msg = template.format(emo, get_emoji("saludo"), negocio)
-        enviar_texto(numero, msg)
+        enviar_texto(sender, template.format(get_emoji("despedida"), get_emoji("saludo"), negocio))
         return
-    
-    # Intención desconocida
-    emo = get_emoji("saludo")
+
+    # ── DESCONOCIDO — notificar al dueño ─────────────────────
     template = get_respuesta("desconocido")
-    msg = template.format(emo, negocio, asistente, get_emoji("comida"))
-    enviar_texto(numero, msg)
-    if TELEFONO_B:
-        enviar_texto(TELEFONO_B, f"⚠️ *CONSULTA SIN RESPUESTA*\nCliente *{numero.replace('@s.whatsapp.net','')}* preguntó:\n_{texto}_")
+    enviar_texto(sender, template.format(get_emoji("saludo"), negocio, asistente, get_emoji("comida")))
+    tb = leer_archivo(BPATH)
+    if tb:
+        enviar_texto(tb,
+            f"⚠️ *CONSULTA SIN RESPUESTA*\n"
+            f"Cliente *{sender.replace('@s.whatsapp.net','')}* preguntó:\n_{texto}_"
+        )
 
 # ════════════════════════════════════════════════════════════
-#  COMANDOS DEL DUEÑO (TELÉFONO B) - SIN CAMBIOS
+#  ONBOARDING DEL DUEÑO
 # ════════════════════════════════════════════════════════════
-def procesar_comando_dueno(numero, texto, audio_path=None):
-    t = texto.strip().upper()
-    tl = texto.strip().lower()
-    
-    if t == "COMANDOS":
-        cmds = """📋 *COMANDOS DISPONIBLES*
-        
-*Configuración:*
-CAMBIAR NOMBRE
-CAMBIAR ASISTENTE
-CAMBIAR DIRECCION
-CAMBIAR HORARIO
-CAMBIAR DIAS
-CAMBIAR TELEFONO
-CAMBIAR REDES
-RESPUESTA SI [texto]
+def procesar_onboarding(numero, texto, audio_path=None):
+    estado = get_onboarding(numero)
+    if not estado:
+        return False
 
-*Categorías:*
-ACTUALIZAR DESAYUNO (luego envía audio)
-ACTUALIZAR COMIDA (luego envía audio)
-ACTUALIZAR CENA (luego envía audio)
-HORARIO DESAYUNO [inicio] [fin]
-HORARIO COMIDA [inicio] [fin]
-HORARIO CENA [inicio] [fin]
+    paso = estado["paso"]
+    cat  = estado["categoria_actual"]
+    t    = texto.strip()
+
+    if paso == "inicio":
+        if "iniciar" in t.lower():
+            set_onboarding(numero, "nombre_negocio")
+            enviar_texto(numero,
+                "¡Perfecto! Vamos a configurar tu negocio. 😊\n\n"
+                "*¿Cómo se llama tu negocio o establecimiento?*"
+            )
+            return True
+        return False
+
+    if paso == "nombre_negocio":
+        set_config("nombre_negocio", t)
+        set_onboarding(numero, "nombre_asistente")
+        enviar_texto(numero,
+            f"✅ Nombre: *{t}*\n\n"
+            f"*¿Con qué nombre se va a presentar tu asistente con los clientes?*\n"
+            f"Ejemplo: _Miguel_, _Brenda_, _Asistente de {t}_"
+        )
+        return True
+
+    if paso == "nombre_asistente":
+        set_config("nombre_asistente", t)
+        set_onboarding(numero, "direccion")
+        enviar_texto(numero,
+            f"✅ Asistente: *{t}*\n\n"
+            f"*¿Cuál es la dirección de tu negocio?*\n"
+            f"(Calle, número, colonia y ciudad)"
+        )
+        return True
+
+    if paso == "direccion":
+        set_config("direccion", t)
+        set_onboarding(numero, "horario_general")
+        enviar_texto(numero,
+            f"✅ Dirección registrada.\n\n"
+            f"*¿Cuál es tu horario general de atención?*\n"
+            f"Ejemplo: _7 de la mañana a 8 de la noche_"
+        )
+        return True
+
+    if paso == "horario_general":
+        set_config("horario_general", t)
+        set_onboarding(numero, "dias_trabajo")
+        enviar_texto(numero,
+            f"✅ Horario registrado.\n\n"
+            f"*¿Qué días trabajas?*\n"
+            f"Ejemplo: _lunes a viernes_, _lunes a sábado_, _todos los días_"
+        )
+        return True
+
+    if paso == "dias_trabajo":
+        set_config("dias_trabajo", t)
+        set_onboarding(numero, "telefono_contacto")
+        enviar_texto(numero,
+            f"✅ Días registrados.\n\n"
+            f"*¿Cuál es tu teléfono de contacto?*\n"
+            f"(Si no quieres compartirlo responde *NO*)"
+        )
+        return True
+
+    if paso == "telefono_contacto":
+        if t.lower() != "no":
+            set_config("telefono_contacto", t)
+        set_onboarding(numero, "redes_sociales")
+        enviar_texto(numero,
+            f"✅ Listo.\n\n"
+            f"*¿Tienes redes sociales?*\n"
+            f"Ejemplo: _Facebook: Taquería El Paisa / Instagram: @taqueriaelpaisa_\n\n"
+            f"Si no tienes, responde *NO*."
+        )
+        return True
+
+    if paso == "redes_sociales":
+        if t.lower() != "no":
+            set_config("redes_sociales", t)
+        set_onboarding(numero, "categorias_lista")
+        enviar_texto(numero,
+            f"✅ ¡Ya casi!\n\n"
+            f"*¿Cuáles son las categorías de tu menú?*\n"
+            f"Escríbelas separadas por coma.\n"
+            f"Ejemplo: _desayunos, comidas_ o _desayunos, comidas, cenas_"
+        )
+        return True
+
+    if paso == "categorias_lista":
+        cats = [c.strip().lower() for c in t.replace(";", ",").split(",") if c.strip()]
+        set_config("categorias_pendientes", json.dumps(cats))
+        set_config("categorias_indice", "0")
+        if cats:
+            set_onboarding(numero, "categoria_horario", cats[0])
+            enviar_texto(numero,
+                f"✅ Categorías: *{', '.join(cats)}*\n\n"
+                f"Ahora configura cada una.\n\n"
+                f"*¿De qué hora a qué hora son los {cats[0].upper()}?*\n"
+                f"Ejemplo: _8:00 a 10:30_"
+            )
+        else:
+            finalizar_onboarding(numero)
+        return True
+
+    if paso == "categoria_horario":
+        partes = re.split(r'[-–a]', t.replace("de","").replace("las","").strip())
+        if len(partes) >= 2:
+            inicio = partes[0].strip().replace(".",":").strip()
+            fin    = partes[-1].strip().replace(".",":").strip()
+            set_config(f"cat_{cat}_inicio", inicio)
+            set_config(f"cat_{cat}_fin", fin)
+            set_onboarding(numero, "categoria_audio", cat)
+            enviar_texto(numero,
+                f"✅ Horario de *{cat}*: {inicio} a {fin}\n\n"
+                f"Ahora *manda el audio* con el menú de {cat.upper()}. 🎙️\n"
+                f"Incluye platillos y precios. Este audio se enviará tal cual a tus clientes."
+            )
+        else:
+            enviar_texto(numero, "No entendí el horario. Escríbelo así: _8:00 a 10:30_")
+        return True
+
+    if paso == "categoria_audio":
+        if audio_path:
+            ext  = os.path.splitext(audio_path)[1]
+            dest = os.path.join(AUDIODIR, f"{cat}{ext}")
+            os.rename(audio_path, dest)
+            inicio = get_config(f"cat_{cat}_inicio", "")
+            fin    = get_config(f"cat_{cat}_fin", "")
+            guardar_categoria(cat, inicio, fin, dest)
+            enviar_texto(numero, f"✅ Audio de *{cat}* guardado.")
+
+            cats = json.loads(get_config("categorias_pendientes", "[]"))
+            idx  = int(get_config("categorias_indice", "0")) + 1
+            set_config("categorias_indice", str(idx))
+
+            if idx < len(cats):
+                siguiente = cats[idx]
+                set_onboarding(numero, "categoria_horario", siguiente)
+                enviar_texto(numero,
+                    f"*¿De qué hora a qué hora son los {siguiente.upper()}?*\n"
+                    f"Ejemplo: _13:00 a 17:00_"
+                )
+            else:
+                finalizar_onboarding(numero)
+        else:
+            enviar_texto(numero, f"Necesito que mandes un *audio de voz* con el menú de {cat.upper()}. 🎙️")
+        return True
+
+    return False
+
+def finalizar_onboarding(numero):
+    del_onboarding(numero)
+    cats     = get_categorias()
+    cats_txt = "\n".join([f"• {c['nombre'].capitalize()}: {c['inicio']} a {c['fin']}" for c in cats])
+    enviar_texto(numero,
+        f"🎉 *¡Configuración completada!*\n\n"
+        f"*{nombre_negocio()}* ya está listo para atender clientes. 🚀\n\n"
+        f"Tu asistente: *{nombre_asistente()}*\n"
+        f"Categorías activas:\n{cats_txt}\n\n"
+        f"Envía *COMANDOS* para ver qué puedes modificar."
+    )
+
+# ════════════════════════════════════════════════════════════
+#  COMANDOS DEL DUEÑO
+# ════════════════════════════════════════════════════════════
+LISTA_COMANDOS = """📋 *COMANDOS MI TIENDA WA*
+
+*Configuración general:*
+CAMBIAR NOMBRE [nuevo nombre]
+CAMBIAR ASISTENTE [nuevo nombre]
+CAMBIAR DIRECCION [nueva dirección]
+CAMBIAR HORARIO [nuevo horario]
+CAMBIAR DIAS [nuevos días]
+CAMBIAR TELEFONO [nuevo teléfono]
+CAMBIAR REDES [nuevas redes]
+RESPUESTA SI [texto personalizado]
+
+*Categorías y menú:*
+ACTUALIZAR DESAYUNO → luego envía el audio
+ACTUALIZAR COMIDA → luego envía el audio
+ACTUALIZAR CENA → luego envía el audio
+HORARIO DESAYUNO 8:00 12:00
+HORARIO COMIDA 12:00 17:00
+HORARIO CENA 18:00 22:00
 ELIMINAR CATEGORIA [nombre]
 VER CATEGORIAS
 
-*Estado y control:*
-ESTADO
-REINICIAR SISTEMA
-VER CONFIG
+*Disponibilidad:*
 HOY NO ABRIMOS
-MAÑANA NO ABRIMOS
+MANANA NO ABRIMOS
 ABRIMOS NORMAL
-"""
-        enviar_texto(numero, cmds)
+
+*Información y control:*
+ESTADO
+VER CONFIG
+REINICIAR SISTEMA
+COMANDOS"""
+
+def procesar_comando_dueno(numero, texto, audio_path=None):
+    t  = texto.strip().upper()
+    tl = texto.strip().lower()
+
+    if t == "COMANDOS":
+        enviar_texto(numero, LISTA_COMANDOS)
         return True
-    
+
     if t == "ESTADO":
-        bot_ok = "✅"
-        wuzapi_ok = "❓"
         try:
-            r = requests.get(f"{WUZAPI}/session/status", headers=headers(), timeout=5)
+            r = requests.get(f"{WUZAPI}/session/status", headers=get_headers(), timeout=5)
             wuzapi_ok = "✅" if r.status_code == 200 else "❌"
         except:
             wuzapi_ok = "❌"
-        
-        ahora = hora_actual()
-        cat_activa = categoria_activa_ahora()
-        cat_nombre = cat_activa["nombre"] if cat_activa else "Ninguna"
-        
-        desayuno_audio = "❌"
-        comida_audio = "❌"
-        cena_audio = "❌"
+        cat = categoria_activa_ahora()
+        cats_estado = ""
         for c in get_categorias():
-            if c["nombre"] == "desayuno" and c.get("audio") and os.path.exists(c["audio"]):
-                desayuno_audio = "✅"
-            if c["nombre"] == "comida" and c.get("audio") and os.path.exists(c["audio"]):
-                comida_audio = "✅"
-            if c["nombre"] == "cena" and c.get("audio") and os.path.exists(c["audio"]):
-                cena_audio = "✅"
-        
+            audio_ok = "✅" if c.get("audio") and os.path.exists(c["audio"]) else "⚠️ sin audio"
+            cats_estado += f"• {c['nombre'].capitalize()}: {c['inicio']}-{c['fin']} {audio_ok}\n"
         cierre = es_cierre_hoy()
-        cierre_txt = f"❌ Hoy no hay cierre" if not cierre else f"✅ Hoy cerrado: {cierre}"
-        
-        estado_msg = f"""📊 *ESTADO DEL SISTEMA*
-
-🤖 Bot: {bot_ok}
-📡 Wuzapi: {wuzapi_ok}
-🕐 Hora: {ahora}
-🍽️ Categoría activa: {cat_nombre}
-
-*Horarios configurados:*
-• Desayuno: {get_config('cat_desayuno_inicio', 'No configurado')} a {get_config('cat_desayuno_fin', '')}
-• Comida: {get_config('cat_comida_inicio', 'No configurado')} a {get_config('cat_comida_fin', '')}
-• Cena: {get_config('cat_cena_inicio', 'No configurado')} a {get_config('cat_cena_fin', '')}
-
-*Audios:*
-🍳 Desayuno: {desayuno_audio}
-🍽️ Comida: {comida_audio}
-🌙 Cena: {cena_audio}
-
-{cierre_txt}
-"""
-        enviar_texto(numero, estado_msg)
+        enviar_texto(numero,
+            f"📊 *ESTADO DEL SISTEMA*\n\n"
+            f"🤖 Bot: ✅\n"
+            f"📡 WuzAPI: {wuzapi_ok}\n"
+            f"🕐 Hora: {hora_actual()}\n"
+            f"🍽️ Categoría activa: {cat['nombre'].capitalize() if cat else 'Ninguna'}\n\n"
+            f"*Categorías:*\n{cats_estado if cats_estado else 'Sin categorías'}\n"
+            f"{'⛔ Hoy cerrado: ' + cierre if cierre else '✅ Abierto hoy'}"
+        )
         return True
-    
-    if t == "REINICIAR SISTEMA":
-        enviar_texto(numero, "🔄 Reiniciando sistema, en un momento vuelvo...")
-        os.system("pkill -f bot.py; pkill -f wuzapi; pkill -f watchdog.sh")
-        time.sleep(2)
-        os.system("bash ~/iniciar_mitiendawa.sh &")
-        return True
-    
+
     if t == "VER CONFIG":
-        config_msg = f"""⚙️ *CONFIGURACIÓN ACTUAL*
+        enviar_texto(numero,
+            f"⚙️ *CONFIGURACIÓN ACTUAL*\n\n"
+            f"Negocio: {nombre_negocio()}\n"
+            f"Asistente: {nombre_asistente()}\n"
+            f"Dirección: {get_direccion() or '—'}\n"
+            f"Horario: {horario_general()}\n"
+            f"Días: {dias_trabajo()}\n"
+            f"Teléfono: {get_telefono() or '—'}\n"
+            f"Redes: {get_redes() or '—'}\n"
+            f"Respuesta SÍ: {respuesta_si()}"
+        )
+        return True
 
-Negocio: {nombre_negocio()}
-Asistente: {nombre_asistente()}
-Dirección: {direccion()}
-Horario general: {horario_general()}
-Días: {dias_trabajo()}
-Teléfono: {telefono_contacto() or 'No configurado'}
-Redes: {redes_sociales() or 'No configurado'}
-Respuesta automática SÍ: {respuesta_si()}
-"""
-        enviar_texto(numero, config_msg)
-        return True
-    
-    if t.startswith("RESPUESTA SI"):
-        nuevo_texto = texto.strip()[12:].strip()
-        if nuevo_texto:
-            set_config("respuesta_si", nuevo_texto)
-            enviar_texto(numero, f"✅ Respuesta para cuando el cliente dice SÍ actualizada.")
-        else:
-            enviar_texto(numero, "❌ Escribe el texto después de RESPUESTA SI")
-        return True
-    
-    if t.startswith("ACTUALIZAR DESAYUNO"):
-        set_onboarding(numero, "cmd_actualizar_audio", "desayuno")
-        enviar_texto(numero, "🎙️ Envía el audio con el menú de DESAYUNO")
-        return True
-    if t.startswith("ACTUALIZAR COMIDA"):
-        set_onboarding(numero, "cmd_actualizar_audio", "comida")
-        enviar_texto(numero, "🎙️ Envía el audio con el menú de COMIDA")
-        return True
-    if t.startswith("ACTUALIZAR CENA"):
-        set_onboarding(numero, "cmd_actualizar_audio", "cena")
-        enviar_texto(numero, "🎙️ Envía el audio con el menú de CENA")
-        return True
-    
-    if t.startswith("HORARIO DESAYUNO"):
-        partes = tl.replace("horario desayuno", "").strip().split()
-        if len(partes) >= 2:
-            set_config("cat_desayuno_inicio", partes[0])
-            set_config("cat_desayuno_fin", partes[1])
-            guardar_categoria("desayuno", partes[0], partes[1], get_config(f"cat_desayuno_audio", ""))
-            enviar_texto(numero, f"✅ Horario de desayuno: {partes[0]} a {partes[1]}")
-        else:
-            enviar_texto(numero, "❌ Formato: HORARIO DESAYUNO 8:00 12:00")
-        return True
-    if t.startswith("HORARIO COMIDA"):
-        partes = tl.replace("horario comida", "").strip().split()
-        if len(partes) >= 2:
-            set_config("cat_comida_inicio", partes[0])
-            set_config("cat_comida_fin", partes[1])
-            guardar_categoria("comida", partes[0], partes[1], get_config(f"cat_comida_audio", ""))
-            enviar_texto(numero, f"✅ Horario de comida: {partes[0]} a {partes[1]}")
-        else:
-            enviar_texto(numero, "❌ Formato: HORARIO COMIDA 12:00 18:00")
-        return True
-    if t.startswith("HORARIO CENA"):
-        partes = tl.replace("horario cena", "").strip().split()
-        if len(partes) >= 2:
-            set_config("cat_cena_inicio", partes[0])
-            set_config("cat_cena_fin", partes[1])
-            guardar_categoria("cena", partes[0], partes[1], get_config(f"cat_cena_audio", ""))
-            enviar_texto(numero, f"✅ Horario de cena: {partes[0]} a {partes[1]}")
-        else:
-            enviar_texto(numero, "❌ Formato: HORARIO CENA 18:00 23:00")
-        return True
-    
-    if t.startswith("ELIMINAR CATEGORIA"):
-        cat_nombre = tl.replace("eliminar categoria", "").strip()
-        if cat_nombre:
-            eliminar_categoria(cat_nombre)
-            enviar_texto(numero, f"✅ Categoría {cat_nombre} eliminada")
-        else:
-            enviar_texto(numero, "❌ Especifica: ELIMINAR CATEGORIA desayuno")
-        return True
-    
     if t == "VER CATEGORIAS":
         cats = get_categorias()
         if cats:
             msg = "📋 *CATEGORÍAS ACTIVAS*\n\n"
             for c in cats:
-                audio_ok = "✅" if c["audio"] and os.path.exists(c["audio"]) else "⚠️ sin audio"
-                msg += f"• {c['nombre'].capitalize()}: {c['inicio']} a {c['fin']} {audio_ok}\n"
+                audio_ok = "✅" if c.get("audio") and os.path.exists(c["audio"]) else "⚠️ sin audio"
+                msg += f"• *{c['nombre'].capitalize()}*: {c['inicio']} a {c['fin']} {audio_ok}\n"
         else:
-            msg = "No hay categorías configuradas"
+            msg = "No hay categorías configuradas."
         enviar_texto(numero, msg)
         return True
-    
+
+    if t == "REINICIAR SISTEMA":
+        enviar_texto(numero, "🔄 Reiniciando sistema...")
+        threading.Thread(target=lambda: (
+            time.sleep(2),
+            os.system("bash ~/iniciar_mitiendawa.sh &")
+        ), daemon=True).start()
+        return True
+
     if t == "HOY NO ABRIMOS":
         hoy = datetime.now().strftime("%Y-%m-%d")
-        guardar_cierre(hoy, "Día de descanso")
-        enviar_texto(numero, f"✅ Registrado. Hoy ({hoy}) el sistema indicará que están cerrados.")
+        guardar_cierre(hoy, "Dia de descanso")
+        enviar_texto(numero, f"✅ Hoy ({hoy}) el sistema indicará que están cerrados.")
         return True
-    
-    if t == "MAÑANA NO ABRIMOS":
+
+    if t in ["MANANA NO ABRIMOS", "MAÑANA NO ABRIMOS"]:
         manana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        guardar_cierre(manana, "Día de descanso")
-        enviar_texto(numero, f"✅ Registrado. Mañana ({manana}) cerrado.")
+        guardar_cierre(manana, "Dia de descanso")
+        enviar_texto(numero, f"✅ Mañana ({manana}) el sistema indicará que están cerrados.")
         return True
-    
+
     if t == "ABRIMOS NORMAL":
         hoy = datetime.now().strftime("%Y-%m-%d")
         con = sqlite3.connect(DBPATH)
@@ -884,88 +1001,84 @@ Respuesta automática SÍ: {respuesta_si()}
         c.execute("DELETE FROM cierres WHERE fecha=?", (hoy,))
         con.commit()
         con.close()
-        enviar_texto(numero, "✅ Cierre cancelado. El sistema atiende con normalidad.")
+        enviar_texto(numero, "✅ Cierre de hoy cancelado. El sistema atiende con normalidad.")
         return True
-    
-    if t.startswith("CAMBIAR NOMBRE"):
-        nuevo = texto.strip()[13:].strip()
-        if nuevo:
-            set_config("nombre_negocio", nuevo)
-            enviar_texto(numero, f"✅ Nombre actualizado: {nuevo}")
+
+    # Comandos con valor en la misma línea
+    cambios = [
+        ("CAMBIAR NOMBRE ",    13, "nombre_negocio",   "✅ Nombre actualizado"),
+        ("CAMBIAR ASISTENTE ", 17, "nombre_asistente", "✅ Asistente actualizado"),
+        ("CAMBIAR DIRECCION ", 17, "direccion",        "✅ Dirección actualizada"),
+        ("CAMBIAR HORARIO ",   15, "horario_general",  "✅ Horario actualizado"),
+        ("CAMBIAR DIAS ",      12, "dias_trabajo",     "✅ Días actualizados"),
+        ("CAMBIAR TELEFONO ",  16, "telefono_contacto","✅ Teléfono actualizado"),
+        ("CAMBIAR REDES ",     13, "redes_sociales",   "✅ Redes actualizadas"),
+    ]
+    for cmd, offset, clave, msg in cambios:
+        if t.startswith(cmd):
+            valor = texto.strip()[offset:].strip()
+            if valor:
+                set_config(clave, valor)
+                enviar_texto(numero, msg)
+            else:
+                enviar_texto(numero, f"❌ Escribe el valor después del comando.")
+            return True
+
+    if t.startswith("RESPUESTA SI "):
+        valor = texto.strip()[13:].strip()
+        if valor:
+            set_config("respuesta_si", valor)
+            enviar_texto(numero, "✅ Respuesta para cuando el cliente dice Sí actualizada.")
         else:
-            enviar_texto(numero, "❌ Escribe el nuevo nombre después de CAMBIAR NOMBRE")
+            enviar_texto(numero, "❌ Escribe el texto después de RESPUESTA SI")
         return True
-    
-    if t.startswith("CAMBIAR ASISTENTE"):
-        nuevo = texto.strip()[16:].strip()
-        if nuevo:
-            set_config("nombre_asistente", nuevo)
-            enviar_texto(numero, f"✅ Asistente actualizado: {nuevo}")
+
+    # Actualizar audios
+    for cat_nombre in ["desayuno", "comida", "cena"]:
+        if t == f"ACTUALIZAR {cat_nombre.upper()}":
+            set_onboarding(numero, "cmd_actualizar_audio", cat_nombre)
+            enviar_texto(numero, f"🎙️ Envía el audio con el menú de *{cat_nombre.upper()}*")
+            return True
+
+    # Horarios directos
+    for cat_nombre in ["desayuno", "comida", "cena"]:
+        if t.startswith(f"HORARIO {cat_nombre.upper()}"):
+            partes = tl.replace(f"horario {cat_nombre}", "").strip().split()
+            if len(partes) >= 2:
+                inicio, fin = partes[0], partes[1]
+                audio_guardado = get_config(f"cat_{cat_nombre}_audio", "")
+                guardar_categoria(cat_nombre, inicio, fin, audio_guardado)
+                set_config(f"cat_{cat_nombre}_inicio", inicio)
+                set_config(f"cat_{cat_nombre}_fin", fin)
+                enviar_texto(numero, f"✅ Horario de {cat_nombre}: {inicio} a {fin}")
+            else:
+                enviar_texto(numero, f"❌ Formato: HORARIO {cat_nombre.upper()} 8:00 12:00")
+            return True
+
+    if t.startswith("ELIMINAR CATEGORIA "):
+        cat_nombre = tl.replace("eliminar categoria ", "").strip()
+        if cat_nombre:
+            eliminar_categoria(cat_nombre)
+            enviar_texto(numero, f"✅ Categoría *{cat_nombre}* eliminada.")
         else:
-            enviar_texto(numero, "❌ Escribe el nuevo nombre del asistente")
+            enviar_texto(numero, "❌ Especifica: ELIMINAR CATEGORIA desayuno")
         return True
-    
-    if t.startswith("CAMBIAR DIRECCION"):
-        nuevo = texto.strip()[16:].strip()
-        if nuevo:
-            set_config("direccion", nuevo)
-            enviar_texto(numero, f"✅ Dirección actualizada")
-        else:
-            enviar_texto(numero, "❌ Escribe la nueva dirección")
-        return True
-    
-    if t.startswith("CAMBIAR HORARIO"):
-        nuevo = texto.strip()[15:].strip()
-        if nuevo:
-            set_config("horario_general", nuevo)
-            enviar_texto(numero, f"✅ Horario general actualizado")
-        else:
-            enviar_texto(numero, "❌ Escribe el nuevo horario")
-        return True
-    
-    if t.startswith("CAMBIAR DIAS"):
-        nuevo = texto.strip()[11:].strip()
-        if nuevo:
-            set_config("dias_trabajo", nuevo)
-            enviar_texto(numero, f"✅ Días de trabajo actualizados")
-        else:
-            enviar_texto(numero, "❌ Escribe los nuevos días")
-        return True
-    
-    if t.startswith("CAMBIAR TELEFONO"):
-        nuevo = texto.strip()[15:].strip()
-        if nuevo:
-            set_config("telefono_contacto", nuevo)
-            enviar_texto(numero, f"✅ Teléfono actualizado")
-        else:
-            enviar_texto(numero, "❌ Escribe el nuevo teléfono")
-        return True
-    
-    if t.startswith("CAMBIAR REDES"):
-        nuevo = texto.strip()[13:].strip()
-        if nuevo:
-            set_config("redes_sociales", nuevo)
-            enviar_texto(numero, f"✅ Redes sociales actualizadas")
-        else:
-            enviar_texto(numero, "❌ Escribe las nuevas redes")
-        return True
-    
+
+    # Recibir audio para actualización
     estado = get_onboarding(numero)
     if estado and estado["paso"] == "cmd_actualizar_audio" and audio_path:
-        categoria = estado["categoria_actual"]
-        ext = os.path.splitext(audio_path)[1]
-        dest = os.path.join(AUDIODIR, f"{categoria}{ext}")
+        cat_nombre = estado["categoria_actual"]
+        ext  = os.path.splitext(audio_path)[1]
+        dest = os.path.join(AUDIODIR, f"{cat_nombre}{ext}")
         os.rename(audio_path, dest)
-        set_config(f"cat_{categoria}_audio", dest)
-        
-        inicio = get_config(f"cat_{categoria}_inicio", "")
-        fin = get_config(f"cat_{categoria}_fin", "")
-        guardar_categoria(categoria, inicio, fin, dest)
-        
+        set_config(f"cat_{cat_nombre}_audio", dest)
+        inicio = get_config(f"cat_{cat_nombre}_inicio", "")
+        fin    = get_config(f"cat_{cat_nombre}_fin", "")
+        guardar_categoria(cat_nombre, inicio, fin, dest)
         del_onboarding(numero)
-        enviar_texto(numero, f"✅ Audio de {categoria} guardado correctamente.")
+        enviar_texto(numero, f"✅ Audio de *{cat_nombre}* actualizado correctamente.")
         return True
-    
+
     return False
 
 # ════════════════════════════════════════════════════════════
@@ -973,83 +1086,73 @@ Respuesta automática SÍ: {respuesta_si()}
 # ════════════════════════════════════════════════════════════
 def procesar_mensaje(sender, texto, audio_path=None):
     phone = sender.replace("@s.whatsapp.net", "").replace("@g.us", "")
-    tb = TELEFONO_B.replace("@s.whatsapp.net", "")
-    
+    tb    = leer_archivo(BPATH)
+
     log(f"MSG de {phone}: {texto[:80]}")
-    
-    # Es el dueño
-    if phone == tb or sender == tb:
-        estado = get_onboarding(sender)
-        if estado and estado["paso"] == "cmd_actualizar_audio" and audio_path:
-            procesar_comando_dueno(phone, texto, audio_path)
-            return
-        procesar_comando_dueno(phone, texto, audio_path)
-        return
-    
-    # Es un cliente
-    if not get_config("nombre_negocio"):
-        log("Sistema sin configurar, ignorando mensaje de cliente")
-        return
-    
+
+    # Ignorar grupos
     if "@g.us" in sender:
         return
-    
-    # Verificar si el cliente está respondiendo su nombre (primera vez)
-    cliente = get_cliente(sender)
-    if cliente and cliente["primera_vez"] == 1:
-        # Está respondiendo con su nombre
-        nombre = texto.strip()
-        if nombre and len(nombre) < 50:
-            guardar_cliente(sender, nombre)
-            enviar_texto(sender, f"{get_emoji('saludo')} ¡Mucho gusto {nombre}! {get_emoji('comida')} ¿En qué puedo ayudarte? (Desayuno, Comida, Cena, Horarios, Ubicación, etc.) 😊")
-        else:
-            enviar_texto(sender, f"{get_emoji('saludo')} No entendí tu nombre. ¿Puedes escribirlo de nuevo? (Solo texto, sin números) 🙏")
+
+    # ── Es el dueño ──────────────────────────────────────────
+    if phone == tb or sender == tb:
+        # Primero intentar onboarding
+        if procesar_onboarding(phone, texto, audio_path):
+            return
+        # Luego comandos
+        if procesar_comando_dueno(phone, texto, audio_path):
+            return
         return
-    
-    # Verificar si es respuesta a "¿quieres que te llamemos?"
-    intencion = detectar_intencion(texto)
-    if intencion in ["pedido", "saludo"] and cliente_quiere_llamada(sender, texto):
+
+    # ── Es un cliente ────────────────────────────────────────
+    if not get_config("nombre_negocio"):
+        log("Sistema sin configurar, ignorando cliente")
         return
-    
+
     responder_cliente(sender, texto)
 
 # ════════════════════════════════════════════════════════════
-#  WEBHOOK — RECIBE EVENTOS DE WUZAPI
+#  WEBHOOK
 # ════════════════════════════════════════════════════════════
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
-        data = request.get_json(force=True) or {}
+        data       = request.get_json(force=True) or {}
         event_data = data.get("event", data)
-        
-        info = event_data.get("Info", {})
-        msg = event_data.get("Message", {})
-        
-        sender = info.get("Sender", info.get("sender", ""))
-        from_me = info.get("IsFromMe", info.get("fromMe", False))
-        msg_id = info.get("ID", info.get("id", ""))
-        
+        info       = event_data.get("Info", {})
+        msg        = event_data.get("Message", {})
+
+        sender   = info.get("Sender", info.get("sender", ""))
+        from_me  = info.get("IsFromMe", info.get("fromMe", False))
+        msg_id   = info.get("ID", info.get("id", ""))
+
         if from_me or not sender:
             return jsonify({"status": "ok"}), 200
-        
-        texto = msg.get("conversation") or msg.get("extendedTextMessage", {}).get("text") or ""
-        
+
+        texto = (msg.get("conversation") or
+                 msg.get("extendedTextMessage", {}).get("text") or "")
+
         audio_path = None
-        audio_msg = msg.get("audioMessage", {})
+        audio_msg  = msg.get("audioMessage", {})
         if audio_msg or info.get("MediaType") == "audio":
-            mime = audio_msg.get("mimetype", "audio/ogg")
+            mime       = audio_msg.get("mimetype", "audio/ogg")
             audio_path = descargar_audio_wuzapi(msg_id, mime)
             if not texto:
                 texto = "[audio]"
-        
+
         if not texto and not audio_path:
             return jsonify({"status": "ok"}), 200
-        
-        threading.Thread(target=procesar_mensaje, args=(sender, texto, audio_path), daemon=True).start()
-        
+
+        threading.Thread(
+            target=procesar_mensaje,
+            args=(sender, texto, audio_path),
+            daemon=True
+        ).start()
+
         return jsonify({"status": "ok"}), 200
+
     except Exception as e:
-        log(f"ERROR en webhook: {e}")
+        log(f"ERROR webhook: {e}")
         return jsonify({"status": "error"}), 500
 
 @app.route("/health", methods=["GET"])
@@ -1060,18 +1163,21 @@ def health():
 #  INICIO
 # ════════════════════════════════════════════════════════════
 if __name__ == "__main__":
-    log("Iniciando MI TIENDA WA...")
-    init_db()
-    
     os.makedirs(AUDIODIR, exist_ok=True)
     os.makedirs(os.path.dirname(DBPATH), exist_ok=True)
-    
-    global TELEFONO_B
-    TELEFONO_B = leer_archivo(BPATH)
-    TOKEN = leer_archivo(TOKENPATH)
-    
-    log(f"Token: {TOKEN[:8]}..." if TOKEN else "Token no encontrado")
-    log(f"Teléfono B: {TELEFONO_B}")
+
+    log("Iniciando MI TIENDA WA...")
+    init_db()
+
+    tb  = leer_archivo(BPATH)
+    tok = leer_archivo(TOKENPATH)
+    log(f"Token: {tok[:8]}..." if tok else "Token no encontrado")
+    log(f"Telefono B: {tb}")
+
+    # Iniciar onboarding si no hay negocio configurado
+    if tb and not get_config("nombre_negocio"):
+        set_onboarding(tb, "inicio")
+        log(f"Onboarding iniciado para {tb}")
+
     log("Bot escuchando en puerto 9090...")
-    
     app.run(host="0.0.0.0", port=9090, debug=False, threaded=True)
