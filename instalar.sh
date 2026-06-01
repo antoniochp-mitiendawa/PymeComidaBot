@@ -36,7 +36,9 @@ info "Solicitando permisos de almacenamiento..."
 termux-setup-storage 2>/dev/null || true
 sleep 2
 
-# ── PASO 2: Actualizar Termux ───────────────────────────────
+# ── PASO 2: Cambiar mirror y actualizar Termux ──────────────
+info "Configurando mirror de Termux..."
+sed -i 's|https://mirror.textcord.xyz/termux/termux-main|https://packages.termux.dev/apt/termux-main|g' $PREFIX/etc/apt/sources.list 2>/dev/null || true
 info "Actualizando Termux..."
 pkg update -y -o Dpkg::Options::="--force-confnew" 2>/dev/null | tail -3
 ok "Termux actualizado"
