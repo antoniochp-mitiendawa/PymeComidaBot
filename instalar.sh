@@ -174,7 +174,7 @@ ask "Ingresa el número de teléfono de ESTE dispositivo (Teléfono A)"
 ask "Formato: código de país + número, sin + ni espacios"
 ask "Ejemplo para México: 5215512345678"
 echo ""
-read -p "  Número: " TELEFONO_A
+read -p "  Número: " TELEFONO_A < /dev/tty
 
 if [[ -z "$TELEFONO_A" ]]; then
     err "Debes ingresar un número de teléfono"
