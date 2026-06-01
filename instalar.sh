@@ -174,7 +174,7 @@ ask "Ingresa el número de teléfono de ESTE dispositivo (Teléfono A)"
 ask "Formato: código de país + número, sin + ni espacios"
 ask "Ejemplo para México: 5215512345678"
 echo ""
-read -p "  Número: " TELEFONO_A < /dev/tty
+read -p "  Número: " TELEFONO_A
 
 if [[ -z "$TELEFONO_A" ]]; then
     err "Debes ingresar un número de teléfono"
@@ -188,7 +188,7 @@ sleep 2
 # Crear usuario usando admin token (Authorization header según documentación oficial)
 USER_TOKEN=$(openssl rand -hex 8)
 curl -s -X POST \
-    -H "token: $USER_TOKEN" \
+    -H "Authorization: $TOKEN" \
     -H "Content-Type: application/json" \
     -d "{"name":"mitiendawa","token":"$USER_TOKEN","webhook":"http://localhost:9090/webhook","events":"Message,ReadReceipt"}" \
     http://localhost:8080/admin/users > /dev/null 2>&1
