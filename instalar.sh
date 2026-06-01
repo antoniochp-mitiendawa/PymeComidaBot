@@ -39,7 +39,6 @@ sleep 2
 # ── PASO 2: Actualizar Termux ───────────────────────────────
 info "Actualizando Termux..."
 pkg update -y -o Dpkg::Options::="--force-confnew" 2>/dev/null | tail -3
-pkg upgrade -y 2>/dev/null | tail -3
 ok "Termux actualizado"
 
 # ── PASO 3: Instalar dependencias del sistema ───────────────
@@ -58,7 +57,6 @@ ok "Dependencias del sistema instaladas"
 
 # ── PASO 4: Instalar librerías Python ──────────────────────
 info "Instalando librerías Python..."
-pip install --quiet --upgrade pip 2>/dev/null
 pip install --quiet flask requests 2>/dev/null
 ok "Librerías Python instaladas"
 
@@ -124,7 +122,7 @@ chmod +x "$WUZDIR/iniciar.sh" "$WUZDIR/detener.sh"
 
 # ── PASO 10: Descargar bot principal ───────────────────────
 info "Descargando bot principal..."
-BOT_URL="https://raw.githubusercontent.com/TU_USUARIO/mitiendawa/main/bot.py"
+BOT_URL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Bot.py"
 
 if wget -q -O "$BASEDIR/bot.py" "$BOT_URL" 2>/dev/null; then
     ok "Bot descargado desde GitHub"
