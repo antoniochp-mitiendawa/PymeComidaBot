@@ -51,6 +51,7 @@ pkg install -y \
     jq \
     sqlite \
     openssl \
+    openssl-tool \
     termux-api \
     2>/dev/null | tail -5
 ok "Dependencias del sistema instaladas"
@@ -74,9 +75,9 @@ ok "Directorios creados"
 info "Descargando WuzAPI..."
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
-    WUZURL="https://github.com/asternic/wuzapi/releases/latest/download/wuzapi-android-arm64"
+    WUZURL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/wuzapi"
 else
-    WUZURL="https://github.com/asternic/wuzapi/releases/latest/download/wuzapi-android-arm"
+    WUZURL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/wuzapi"
 fi
 
 if wget -q --show-progress -O "$WUZDIR/wuzapi" "$WUZURL" 2>/dev/null; then
