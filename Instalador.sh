@@ -116,14 +116,14 @@ ok "Script de inicio de WuzAPI creado"
 
 # ── Descargar archivos desde GitHub ─────────────────────────
 info "Descargando bot.py..."
-wget -O "$BASEDIR/bot.py" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/bot.py"
+wget -O "$BASEDIR/bot.py" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Bot.py"
 if [[ $? -ne 0 ]]; then
     err "No se pudo descargar bot.py"
 fi
 ok "bot.py descargado"
 
 info "Descargando watchdog.sh..."
-wget -O "$BASEDIR/watchdog.sh" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/watchdog.sh"
+wget -O "$BASEDIR/watchdog.sh" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Watchdog.sh"
 if [[ $? -ne 0 ]]; then
     err "No se pudo descargar watchdog.sh"
 fi
