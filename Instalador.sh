@@ -38,11 +38,31 @@ info "Solicitando permisos de almacenamiento..."
 termux-setup-storage 2>/dev/null || true
 sleep 2
 
-# ── Actualizar Termux (sin filtros que puedan romper) ───────
-info "Actualizando Termux..."
-pkg update -y
-pkg upgrade -y
-ok "Termux actualizado"
+# ── Actualizar Termux ────────────────────────────────────────
+# pkg upgrade puede matar el shell al actualizar bash/termux
+# Usamos un archivo de estado para saber si ya se actualizó
+ESTADO_FILE="$HOME/.mitiendawa_actualizado"
+
+if [[ ! -f "$ESTADO_FILE" ]]; then
+    info "Actualizando Termux (primera vez)..."
+    pkg update -y
+    # Marcar que ya se actualizó ANTES del upgrade
+    touch "$ESTADO_FILE"
+    # Guardar el script en home para relanzarlo después del upgrade
+    cp "$0" "$HOME/.instalador_mitiendawa.sh" 2>/dev/null ||         curl -fsSL https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/instalador.sh         -o "$HOME/.instalador_mitiendawa.sh"
+    chmod +x "$HOME/.instalador_mitiendawa.sh"
+    # Agregar autolanzamiento al .bashrc temporalmente
+    if ! grep -q "instalador_mitiendawa" ~/.bashrc 2>/dev/null; then
+        echo 'bash "$HOME/.instalador_mitiendawa.sh" && sed -i "/instalador_mitiendawa/d" ~/.bashrc' >> ~/.bashrc
+    fi
+    info "Aplicando upgrade (Termux se puede reiniciar, es normal)..."
+    pkg upgrade -y
+    info "Upgrade completo. Si Termux se cerró, ábrelo de nuevo para continuar."
+    exit 0
+else
+    ok "Termux ya actualizado, continuando instalación..."
+    rm -f "$ESTADO_FILE"
+fi
 
 # ── Instalar dependencias (una por una para evitar fallos) ──
 info "Instalando dependencias..."
