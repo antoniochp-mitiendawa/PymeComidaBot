@@ -153,7 +153,6 @@ chmod +x "$HOME/iniciar_mitiendawa.sh"
 
 # ── PASO 12: Guardar token para uso del bot ─────────────────
 echo "$TOKEN" > "$DBDIR/token.txt"
-echo "$USER_TOKEN" > "$DBDIR/user_token.txt"
 ok "Token generado y guardado"
 
 # ── PASO 13: Termux wake-lock ──────────────────────────────
@@ -185,7 +184,7 @@ echo "$TELEFONO_A" > "$DBDIR/telefono_a.txt"
 info "Creando usuario en WuzAPI..."
 sleep 2
 
-# Crear usuario usando admin token (Authorization header según documentación oficial)
+# Crear usuario — Authorization header con admin token (documentación oficial)
 USER_TOKEN=$(openssl rand -hex 8)
 curl -s -X POST \
     -H "Authorization: $TOKEN" \
@@ -193,24 +192,23 @@ curl -s -X POST \
     -d "{"name":"mitiendawa","token":"$USER_TOKEN","webhook":"http://localhost:9090/webhook","events":"Message,ReadReceipt"}" \
     http://localhost:8080/admin/users > /dev/null 2>&1
 
-# Guardar user token
 echo "$USER_TOKEN" > "$DBDIR/user_token.txt"
 sleep 2
 
-# Conectar sesión con user token
+# Conectar sesión — Token header con user token (documentación oficial)
 info "Conectando sesión WhatsApp..."
 curl -s -X POST \
-    -H "Authorization: $USER_TOKEN" \
+    -H "Token: $USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"Subscribe":["Message"],"Immediate":false}' \
     http://localhost:8080/session/connect > /dev/null 2>&1
 
-sleep 3
+sleep 5
 
-# Solicitar código de emparejamiento
+# Solicitar código de emparejamiento — Token header con user token
 info "Solicitando código de emparejamiento..."
 PAIR_RESP=$(curl -s \
-    -H "Authorization: $USER_TOKEN" \
+    -H "Token: $USER_TOKEN" \
     "http://localhost:8080/session/pairphone?phone=$TELEFONO_A" 2>/dev/null)
 
 PAIR_CODE=$(echo "$PAIR_RESP" | python3 -c "
@@ -272,7 +270,7 @@ sleep 3
 
 # Registrar webhook en WuzAPI
 curl -s -X PUT \
-    -H "Token: $TOKEN" \
+    -H "Token: $USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"WebhookURL":"http://localhost:9090/webhook"}' \
     http://localhost:8080/session/status > /dev/null 2>/dev/null
@@ -283,7 +281,7 @@ sleep 2
 MENSAJE_BIENVENIDA="¡Hola! 👋 Soy el sistema *Mi Tienda WA*. Tu número ha sido registrado correctamente como administrador. ✅\n\nAhora vamos a configurar tu negocio. Te haré unas preguntas sencillas.\n\nResponde *INICIAR* cuando estés listo."
 
 curl -s -X POST \
-    -H "Authorization: $USER_TOKEN" \
+    -H "Token: $USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"Phone\":\"$TELEFONO_B\",\"Body\":\"$MENSAJE_BIENVENIDA\"}" \
     http://localhost:8080/chat/send/text > /dev/null 2>/dev/null
