@@ -63,7 +63,6 @@ ok "Directorios creados"
 
 # ── PASO 6: Compilar WuzAPI desde código fuente ─────────────
 info "Clonando WuzAPI..."
-cd "$HOME"
 rm -rf "$WUZDIR"
 git clone --depth=1 https://github.com/asternic/wuzapi.git "$WUZDIR"
 if [[ $? -ne 0 ]]; then
@@ -71,7 +70,7 @@ if [[ $? -ne 0 ]]; then
 fi
 ok "Repositorio clonado"
 
-info "Compilando WuzAPI (puede tardar 5-10 minutos)..."
+info "Compilando WuzAPI (puede tardar varios minutos)..."
 cd "$WUZDIR"
 go mod tidy 2>/dev/null
 go build -o wuzapi .
@@ -79,8 +78,8 @@ if [[ $? -ne 0 ]] || [[ ! -f "$WUZDIR/wuzapi" ]]; then
     err "Error al compilar WuzAPI."
 fi
 chmod +x "$WUZDIR/wuzapi"
-ok "WuzAPI compilado correctamente"
 cd "$HOME"
+ok "WuzAPI compilado correctamente"
 
 # ── PASO 7: Generar token único ─────────────────────────────
 TOKEN=$(openssl rand -hex 16)
@@ -116,14 +115,13 @@ chmod +x "$WUZDIR/iniciar.sh" "$WUZDIR/detener.sh"
 
 # ── PASO 10: Descargar bot principal ───────────────────────
 info "Descargando bot principal..."
-BOT_URL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Bot.py"
+BOT_URL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/bot.py"
 
-if wget -q -O "$BASEDIR/bot.py" "$BOT_URL" 2>/dev/null; then
-    ok "Bot descargado desde GitHub"
-else
-    warn "No se pudo descargar bot.py desde GitHub."
-    warn "Coloca bot.py manualmente en: $BASEDIR/bot.py"
+wget -O "$BASEDIR/bot.py" "$BOT_URL"
+if [[ $? -ne 0 ]]; then
+    err "No se pudo descargar bot.py desde GitHub. Verifica que el archivo existe en el repositorio."
 fi
+ok "Bot descargado desde GitHub"
 
 # ── PASO 11: Script maestro de inicio ──────────────────────
 cat > "$HOME/iniciar_mitiendawa.sh" << MASTEREOF
@@ -153,6 +151,7 @@ chmod +x "$HOME/iniciar_mitiendawa.sh"
 
 # ── PASO 12: Guardar token para uso del bot ─────────────────
 echo "$TOKEN" > "$DBDIR/token.txt"
+echo "$USER_TOKEN" > "$DBDIR/user_token.txt"
 ok "Token generado y guardado"
 
 # ── PASO 13: Termux wake-lock ──────────────────────────────
@@ -181,22 +180,35 @@ fi
 
 echo "$TELEFONO_A" > "$DBDIR/telefono_a.txt"
 
-info "Creando sesión en WuzAPI..."
+info "Creando usuario en WuzAPI..."
 sleep 2
 
-# Conectar sesión
-CONNECT_RESP=$(curl -s -X POST \
-    -H "Token: $TOKEN" \
+# Crear usuario usando admin token (Authorization header según documentación oficial)
+USER_TOKEN=$(openssl rand -hex 8)
+curl -s -X POST \
+    -H "Authorization: $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{"name":"mitiendawa","token":"$USER_TOKEN","webhook":"http://localhost:9090/webhook","events":"Message,ReadReceipt"}" \
+    http://localhost:8080/admin/users > /dev/null 2>&1
+
+# Guardar user token
+echo "$USER_TOKEN" > "$DBDIR/user_token.txt"
+sleep 2
+
+# Conectar sesión con user token
+info "Conectando sesión WhatsApp..."
+curl -s -X POST \
+    -H "Authorization: $USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"Subscribe":["Message"],"Immediate":false}' \
-    http://localhost:8080/session/connect 2>/dev/null)
+    http://localhost:8080/session/connect > /dev/null 2>&1
 
-sleep 2
+sleep 3
 
 # Solicitar código de emparejamiento
 info "Solicitando código de emparejamiento..."
 PAIR_RESP=$(curl -s \
-    -H "Token: $TOKEN" \
+    -H "Authorization: $USER_TOKEN" \
     "http://localhost:8080/session/pairphone?phone=$TELEFONO_A" 2>/dev/null)
 
 PAIR_CODE=$(echo "$PAIR_RESP" | python3 -c "
@@ -269,7 +281,7 @@ sleep 2
 MENSAJE_BIENVENIDA="¡Hola! 👋 Soy el sistema *Mi Tienda WA*. Tu número ha sido registrado correctamente como administrador. ✅\n\nAhora vamos a configurar tu negocio. Te haré unas preguntas sencillas.\n\nResponde *INICIAR* cuando estés listo."
 
 curl -s -X POST \
-    -H "Token: $TOKEN" \
+    -H "Authorization: $USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"Phone\":\"$TELEFONO_B\",\"Body\":\"$MENSAJE_BIENVENIDA\"}" \
     http://localhost:8080/chat/send/text > /dev/null 2>/dev/null
