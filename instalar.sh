@@ -188,7 +188,7 @@ sleep 2
 # Crear usuario usando admin token (Authorization header según documentación oficial)
 USER_TOKEN=$(openssl rand -hex 8)
 curl -s -X POST \
-    -H "Authorization: $TOKEN" \
+    -H "token: $USER_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{"name":"mitiendawa","token":"$USER_TOKEN","webhook":"http://localhost:9090/webhook","events":"Message,ReadReceipt"}" \
     http://localhost:8080/admin/users > /dev/null 2>&1
