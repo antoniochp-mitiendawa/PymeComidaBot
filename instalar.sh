@@ -43,17 +43,7 @@ ok "Termux actualizado"
 
 # ── PASO 3: Instalar dependencias del sistema ───────────────
 info "Instalando dependencias del sistema..."
-pkg install -y \
-    python \
-    python-pip \
-    wget \
-    curl \
-    jq \
-    sqlite \
-    openssl \
-    openssl-tool \
-    termux-api \
-    2>/dev/null | tail -5
+pkg install -y python python-pip wget curl jq sqlite openssl openssl-tool termux-api golang git 2>/dev/null | tail -5
 ok "Dependencias del sistema instaladas"
 
 # ── PASO 4: Instalar librerías Python ──────────────────────
@@ -71,23 +61,26 @@ DBDIR="$BASEDIR/data"
 mkdir -p "$BASEDIR" "$WUZDIR" "$AUDIODIR" "$DBDIR"
 ok "Directorios creados"
 
-# ── PASO 6: Descargar WuzAPI ────────────────────────────────
-info "Descargando WuzAPI..."
-ARCH=$(uname -m)
-if [[ "$ARCH" == "aarch64" ]]; then
-    WUZURL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/wuzapi"
-else
-    WUZURL="https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/wuzapi"
+# ── PASO 6: Compilar WuzAPI desde código fuente ─────────────
+info "Clonando WuzAPI..."
+cd "$HOME"
+rm -rf "$WUZDIR"
+git clone --depth=1 https://github.com/asternic/wuzapi.git "$WUZDIR"
+if [[ $? -ne 0 ]]; then
+    err "No se pudo clonar WuzAPI. Verifica tu conexión."
 fi
+ok "Repositorio clonado"
 
-if wget -q --show-progress -O "$WUZDIR/wuzapi" "$WUZURL" 2>/dev/null; then
-    chmod +x "$WUZDIR/wuzapi"
-    ok "WuzAPI descargado"
-else
-    warn "No se pudo descargar WuzAPI automáticamente."
-    warn "Descarga manual: https://github.com/asternic/wuzapi/releases"
-    warn "Coloca el binario en: $WUZDIR/wuzapi y ejecuta: chmod +x $WUZDIR/wuzapi"
+info "Compilando WuzAPI (puede tardar 5-10 minutos)..."
+cd "$WUZDIR"
+go mod tidy 2>/dev/null
+go build -o wuzapi .
+if [[ $? -ne 0 ]] || [[ ! -f "$WUZDIR/wuzapi" ]]; then
+    err "Error al compilar WuzAPI."
 fi
+chmod +x "$WUZDIR/wuzapi"
+ok "WuzAPI compilado correctamente"
+cd "$HOME"
 
 # ── PASO 7: Generar token único ─────────────────────────────
 TOKEN=$(openssl rand -hex 16)
