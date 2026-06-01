@@ -1,7 +1,19 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
-#  MI TIENDA WA — Instalador completo v4
-#  Compila WuzAPI desde fuente (con verificación de pasos)
+#  MI TIENDA WA — Instalador completo
+#  Un solo comando, sin intervención manual
+# ============================================================
+
+# ============================================================
+#  REPARACIÓN PREVIA DE TERMUX (sin borrar nada existente)
+# ============================================================
+echo ""
+echo "🔧 Verificando y reparando Termux..."
+apt update -y
+apt full-upgrade -y -o Dpkg::Options::="--force-confnew"
+pkg install curl git golang jq sqlite openssl -y
+echo "✅ Reparación completada"
+echo ""
 # ============================================================
 
 GREEN='\033[0;32m'
@@ -22,7 +34,7 @@ clear
 echo -e "${BOLD}"
 echo "  ╔══════════════════════════════════════════╗"
 echo "  ║         MI TIENDA WA                     ║"
-echo "  ║   Instalador v4 (con verificación)       ║"
+echo "  ║   Instalador automático                  ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo -e "${NC}"
 echo ""
@@ -43,35 +55,20 @@ info "Actualizando repositorios..."
 pkg update -y -o Dpkg::Options::="--force-confnew" 2>/dev/null || true
 ok "Repositorios actualizados"
 
-# ── Instalar dependencias UNA POR UNA con verificación ──────
+# ── Instalar dependencias ───────────────────────────────────
 info "Instalando dependencias..."
 
-for pkg in python python-pip wget curl jq sqlite openssl termux-api git golang make; do
-    echo -n "  Instalando $pkg... "
-    pkg install -y $pkg > /dev/null 2>&1
-    if command -v $pkg &> /dev/null || [[ "$pkg" == "termux-api" ]]; then
-        echo -e "${GREEN}OK${NC}"
-    else
-        echo -e "${RED}FALLÓ${NC}"
-        warn "Reintentando $pkg..."
-        pkg install -y $pkg
-    fi
+for pkg in python python-pip wget curl jq sqlite openssl termux-api git; do
+    echo "  Instalando $pkg..."
+    pkg install -y $pkg
 done
-
-# Verificar específicamente git y go
-if ! command -v git &> /dev/null; then
-    err "git no se instaló correctamente. Ejecuta: pkg install git"
-fi
-
-if ! command -v go &> /dev/null; then
-    err "golang no se instaló correctamente. Ejecuta: pkg install golang"
-fi
 
 ok "Dependencias instaladas"
 
-# ── Instalar librerías Python (sin actualizar pip) ──────────
+# ── Instalar librerías Python ───────────────────────────────
 info "Instalando librerías Python..."
-pip install flask requests > /dev/null 2>&1
+pip install --upgrade pip
+pip install flask requests
 ok "Librerías Python instaladas"
 
 # ── Crear estructura de directorios ─────────────────────────
@@ -84,31 +81,22 @@ DBDIR="$BASEDIR/data"
 mkdir -p "$BASEDIR" "$WUZDIR" "$AUDIODIR" "$DBDIR"
 ok "Directorios creados"
 
-# ── COMPILAR WUZAPI DESDE CÓDIGO FUENTE ─────────────────────
-info "Clonando y compilando WuzAPI (esto tomará varios minutos)..."
-cd "$WUZDIR"
-
-# Limpiar por si existe algo
-rm -rf "$WUZDIR"/*
-rm -rf "$WUZDIR"/.[!.]* 2>/dev/null
-
-# Clonar repositorio
-git clone https://github.com/asternic/wuzapi.git .
-if [[ $? -ne 0 ]]; then
-    err "No se pudo clonar el repositorio de WuzAPI"
+# ── Descargar WuzAPI ────────────────────────────────────────
+info "Descargando WuzAPI..."
+ARCH=$(uname -m)
+if [[ "$ARCH" == "aarch64" ]]; then
+    WUZURL="https://github.com/asternic/wuzapi/releases/latest/download/wuzapi-android-arm64"
+else
+    WUZURL="https://github.com/asternic/wuzapi/releases/latest/download/wuzapi-android-arm"
 fi
-ok "Repositorio clonado"
 
-# Compilar
-info "Compilando WuzAPI (puede tomar 5-10 minutos)..."
-go mod tidy
-go build -o wuzapi
+wget -O "$WUZDIR/wuzapi" "$WUZURL"
 if [[ $? -ne 0 ]]; then
-    err "Error al compilar WuzAPI"
+    err "No se pudo descargar WuzAPI. Verifica tu conexión a internet."
 fi
 
 chmod +x "$WUZDIR/wuzapi"
-ok "WuzAPI compilado exitosamente"
+ok "WuzAPI descargado"
 
 # ── Generar token único ─────────────────────────────────────
 TOKEN=$(openssl rand -hex 16)
@@ -140,14 +128,14 @@ ok "Script de inicio de WuzAPI creado"
 
 # ── Descargar archivos desde GitHub ─────────────────────────
 info "Descargando bot.py..."
-wget -q -O "$BASEDIR/bot.py" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Bot.py"
+wget -O "$BASEDIR/bot.py" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Bot.py"
 if [[ $? -ne 0 ]]; then
     err "No se pudo descargar bot.py"
 fi
 ok "bot.py descargado"
 
 info "Descargando watchdog.sh..."
-wget -q -O "$BASEDIR/watchdog.sh" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Watchdog.sh"
+wget -O "$BASEDIR/watchdog.sh" "https://raw.githubusercontent.com/antoniochp-mitiendawa/PymeComidaBot/main/Watchdog.sh"
 if [[ $? -ne 0 ]]; then
     err "No se pudo descargar watchdog.sh"
 fi
@@ -198,29 +186,7 @@ ok "Teléfono B guardado"
 # ── Iniciar WuzAPI ──────────────────────────────────────────
 info "Iniciando WuzAPI..."
 nohup bash "$WUZDIR/iniciar.sh" > /dev/null 2>&1 &
-sleep 8
-
-# ── Verificar que WuzAPI está respondiendo ──────────────────
-info "Verificando WuzAPI..."
-MAX_RETRIES=10
-RETRY=0
-WUZAPI_OK=0
-while [[ $RETRY -lt $MAX_RETRIES ]]; do
-    curl -s -H "Token: $TOKEN" "http://localhost:8080/session/status" > /dev/null 2>&1
-    if [[ $? -eq 0 ]]; then
-        WUZAPI_OK=1
-        break
-    fi
-    sleep 2
-    RETRY=$((RETRY+1))
-done
-
-if [[ $WUZAPI_OK -eq 0 ]]; then
-    warn "WuzAPI no responde. Revisando logs..."
-    tail -5 "$WUZDIR/wuzapi.log"
-    err "WuzAPI no se inició correctamente"
-fi
-ok "WuzAPI funcionando"
+sleep 5
 
 # ── Emparejamiento con WhatsApp ─────────────────────────────
 info "Solicitando código de emparejamiento..."
@@ -268,7 +234,7 @@ sleep 3
 # Iniciar el bot temporalmente
 info "Iniciando bot para verificar webhook..."
 nohup python "$BASEDIR/bot.py" > "$BASEDIR/bot.log" 2>&1 &
-sleep 8
+sleep 5
 
 # Enviar mensaje de prueba al dueño
 TEST_MSG="✅ Webhook funcionando correctamente
@@ -347,7 +313,7 @@ ok "Inicio automático configurado"
 # ── Iniciar el sistema completo ─────────────────────────────
 info "Iniciando sistema completo..."
 bash ~/iniciar_mitiendawa.sh
-sleep 8
+sleep 5
 
 # ── Enviar mensaje de onboarding al dueño ───────────────────
 ONBOARD_MSG="🎉 *¡Instalación completada!*
