@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
-#  MI TIENDA WA — Instalador completo
-#  Un solo comando, sin intervención manual
+#  MI TIENDA WA — Instalador completo v3
+#  Compila WuzAPI desde fuente (soluciona error 404)
 # ============================================================
 
 GREEN='\033[0;32m'
@@ -22,7 +22,7 @@ clear
 echo -e "${BOLD}"
 echo "  ╔══════════════════════════════════════════╗"
 echo "  ║         MI TIENDA WA                     ║"
-echo "  ║   Instalador automático                  ║"
+echo "  ║   Instalador v3 (compilación local)      ║"
 echo "  ╚══════════════════════════════════════════╝"
 echo -e "${NC}"
 echo ""
@@ -38,24 +38,23 @@ info "Solicitando permisos de almacenamiento..."
 termux-setup-storage 2>/dev/null || true
 sleep 2
 
-# ── Actualizar repositorios (sin upgrade para no matar el shell) ──
+# ── Actualizar repositorios ─────────────────────────────────
 info "Actualizando repositorios..."
 pkg update -y -o Dpkg::Options::="--force-confnew" 2>/dev/null || true
 ok "Repositorios actualizados"
 
-# ── Instalar dependencias (una por una para evitar fallos) ──
+# ── Instalar dependencias (incluyendo compilación) ──────────
 info "Instalando dependencias..."
 
-for pkg in python python-pip wget curl jq sqlite openssl termux-api git; do
+for pkg in python python-pip wget curl jq sqlite openssl termux-api git golang make; do
     echo "  Instalando $pkg..."
     pkg install -y $pkg
 done
 
 ok "Dependencias instaladas"
 
-# ── Instalar librerías Python ───────────────────────────────
+# ── Instalar librerías Python (sin actualizar pip) ──────────
 info "Instalando librerías Python..."
-pip install --upgrade pip
 pip install flask requests
 ok "Librerías Python instaladas"
 
@@ -69,22 +68,25 @@ DBDIR="$BASEDIR/data"
 mkdir -p "$BASEDIR" "$WUZDIR" "$AUDIODIR" "$DBDIR"
 ok "Directorios creados"
 
-# ── Descargar WuzAPI ────────────────────────────────────────
-info "Descargando WuzAPI..."
-ARCH=$(uname -m)
-if [[ "$ARCH" == "aarch64" ]]; then
-    WUZURL="https://github.com/asternic/wuzapi/releases/latest/download/wuzapi-android-arm64"
-else
-    WUZURL="https://github.com/asternic/wuzapi/releases/latest/download/wuzapi-android-arm"
+# ── COMPILAR WUZAPI DESDE CÓDIGO FUENTE ─────────────────────
+info "Clonando y compilando WuzAPI (esto tomará varios minutos)..."
+cd "$WUZDIR"
+
+# Clonar repositorio
+git clone https://github.com/asternic/wuzapi.git .
+if [[ $? -ne 0 ]]; then
+    err "No se pudo clonar el repositorio de WuzAPI"
 fi
 
-wget -O "$WUZDIR/wuzapi" "$WUZURL"
+# Compilar
+go mod tidy
+go build -o wuzapi
 if [[ $? -ne 0 ]]; then
-    err "No se pudo descargar WuzAPI. Verifica tu conexión a internet."
+    err "Error al compilar WuzAPI"
 fi
 
 chmod +x "$WUZDIR/wuzapi"
-ok "WuzAPI descargado"
+ok "WuzAPI compilado exitosamente"
 
 # ── Generar token único ─────────────────────────────────────
 TOKEN=$(openssl rand -hex 16)
@@ -174,7 +176,7 @@ ok "Teléfono B guardado"
 # ── Iniciar WuzAPI ──────────────────────────────────────────
 info "Iniciando WuzAPI..."
 nohup bash "$WUZDIR/iniciar.sh" > /dev/null 2>&1 &
-sleep 5
+sleep 8
 
 # ── Emparejamiento con WhatsApp ─────────────────────────────
 info "Solicitando código de emparejamiento..."
@@ -222,7 +224,7 @@ sleep 3
 # Iniciar el bot temporalmente
 info "Iniciando bot para verificar webhook..."
 nohup python "$BASEDIR/bot.py" > "$BASEDIR/bot.log" 2>&1 &
-sleep 5
+sleep 8
 
 # Enviar mensaje de prueba al dueño
 TEST_MSG="✅ Webhook funcionando correctamente
@@ -301,7 +303,7 @@ ok "Inicio automático configurado"
 # ── Iniciar el sistema completo ─────────────────────────────
 info "Iniciando sistema completo..."
 bash ~/iniciar_mitiendawa.sh
-sleep 5
+sleep 8
 
 # ── Enviar mensaje de onboarding al dueño ───────────────────
 ONBOARD_MSG="🎉 *¡Instalación completada!*
